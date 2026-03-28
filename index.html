@@ -6,6 +6,7 @@
 <title>S.T.A.L.K.E.R. Trader Builder</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
   :root {
     --bg: #0d0f0b;
@@ -351,19 +352,17 @@
   .tier-item .rm { cursor: pointer; color: var(--text3); font-size: 13px; transition: color 0.1s; padding: 0 2px; }
   .tier-item .rm:hover { color: var(--danger); }
 
-  /* ── MOVE BUTTONS ── */
-  .move-btn {
-    font-size: 9px;
-    color: var(--text3);
-    cursor: pointer;
-    padding: 0 1px;
-    line-height: 1;
-    transition: color 0.1s;
-    flex-shrink: 0;
-    user-select: none;
+  /* ── DRAG & DROP ── */
+  .sortable-ghost {
+    opacity: 0.4;
+    background: var(--accent);
   }
-  .move-btn:hover { color: var(--accent); }
-  .move-btn.disabled { opacity: 0.2; pointer-events: none; }
+  .tier-item, .tier-comment {
+    cursor: grab;
+  }
+  .tier-item:active, .tier-comment:active {
+    cursor: grabbing;
+  }
 
   /* ── COMMENT ROWS ── */
   .tier-comment {
@@ -1249,6 +1248,37 @@ function moveEntry(traderId, tierId, idx, dir) {
   renderExport();
 }
 
+function syncTierOrder(traderId, tierId) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  const newOrder = [];
+  document.querySelectorAll(`.tier-items-list[data-tier-id="${tierId}"] > *`).forEach(el => {
+    const idx = parseInt(el.dataset.idx);
+    if (!isNaN(idx)) newOrder.push(tier.items[idx]);
+  });
+  tier.items = newOrder;
+  renderTraders();
+  renderExport();
+}
+
+function initDragAndDrop() {
+  document.querySelectorAll('.tier-items-list').forEach(container => {
+    if (container._sortable) return;
+    container._sortable = new Sortable(container, {
+      animation: 150,
+      handle: '.tier-item, .tier-comment',
+      ghostClass: 'sortable-ghost',
+      onEnd: function(evt) {
+        const tierId = parseInt(evt.to.dataset.tierId);
+        const traderId = parseInt(evt.to.dataset.traderId);
+        syncTierOrder(traderId, tierId);
+      }
+    });
+  });
+}
+
 function addComment(traderId, tierId) {
   const trader = traders.find(t => t.id === traderId);
   if (!trader) return;
@@ -1428,24 +1458,18 @@ function renderTraders() {
         </div>`;
 
       if (tier.items.length > 0) {
-        html += '<div class="tier-items-list">';
+        html += `<div class="tier-items-list" data-trader-id="${trader.id}" data-tier-id="${tier.id}">`;
         for (let idx = 0; idx < tier.items.length; idx++) {
           const entry = tier.items[idx];
-          const isFirst = idx === 0;
-          const isLast = idx === tier.items.length - 1;
-          const moveButtons = `
-            <span class="move-btn${isFirst ? ' disabled' : ''}" onclick="moveEntry(${trader.id},${tier.id},${idx},-1)" title="Move up">▲</span>
-            <span class="move-btn${isLast ? ' disabled' : ''}" onclick="moveEntry(${trader.id},${tier.id},${idx},1)" title="Move down">▼</span>`;
 
           if (entry.type === 'comment') {
-            html += `<div class="tier-comment">
+            html += `<div class="tier-comment" data-idx="${idx}">
               <span class="comment-prefix">;</span>
               <input type="text" class="comment-input" value="${escHtml(entry.text)}"
                 placeholder="comment text..."
                 onchange="updateComment(${trader.id},${tier.id},${idx},this.value)"
                 oninput="updateComment(${trader.id},${tier.id},${idx},this.value)">
               <span class="tier-comment-spacer"></span>
-              ${moveButtons}
               <span class="rm" onclick="removeEntry(${trader.id},${tier.id},${idx})">✕</span>
             </div>`;
           } else {
@@ -1467,7 +1491,7 @@ function renderTraders() {
             const dispName = itemNames[entry.name]
               ? `<span class="tier-item-disp-name" title="${escHtml(itemNames[entry.name])}">${escHtml(itemNames[entry.name])}</span>`
               : `<span class="tier-item-spacer"></span>`;
-            html += `<div class="${rowClass}">
+            html += `<div class="${rowClass}" data-idx="${idx}">
               <span class="tier-item-name" title="${escHtml(entry.name)}">${escHtml(entry.name)}</span>
               ${dispName}
               ${owBadge}
@@ -1478,7 +1502,6 @@ function renderTraders() {
               <input type="number" min="0" max="1" step="0.01" value="${entry.chance}"
                 onchange="updateItemField(${trader.id},${tier.id},'${entry.name}','chance',this.value)"
                 title="Chance (0-1)" style="width:62px">
-              ${moveButtons}
               <span class="rm" onclick="removeItem(${trader.id},${tier.id},'${entry.name}')">✕</span>
             </div>`;
           }
@@ -1503,6 +1526,7 @@ function renderTraders() {
     </div>`; // trader-card
   }
   el.innerHTML = html;
+  initDragAndDrop();
 }
 
 // ── EXPORT ──

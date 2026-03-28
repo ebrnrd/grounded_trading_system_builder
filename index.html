@@ -351,6 +351,60 @@
   .tier-item .rm { cursor: pointer; color: var(--text3); font-size: 13px; transition: color 0.1s; padding: 0 2px; }
   .tier-item .rm:hover { color: var(--danger); }
 
+  /* ── MOVE BUTTONS ── */
+  .move-btn {
+    font-size: 9px;
+    color: var(--text3);
+    cursor: pointer;
+    padding: 0 1px;
+    line-height: 1;
+    transition: color 0.1s;
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .move-btn:hover { color: var(--accent); }
+  .move-btn.disabled { opacity: 0.2; pointer-events: none; }
+
+  /* ── COMMENT ROWS ── */
+  .tier-comment {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-bottom: 1px solid #161a12;
+    background: #0f130d;
+    transition: background 0.1s;
+  }
+  .tier-comment:hover { background: #131710; }
+  .comment-prefix {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+    flex-shrink: 0;
+  }
+  .comment-input {
+    font-family: var(--mono) !important;
+    font-size: 11px !important;
+    color: var(--text3) !important;
+    background: transparent !important;
+    border: none !important;
+    border-bottom: 1px dashed var(--border) !important;
+    border-radius: 0 !important;
+    padding: 1px 3px !important;
+    width: 0;
+    flex: 1;
+    outline: none !important;
+  }
+  .comment-input:focus {
+    color: var(--text2) !important;
+    border-bottom-color: var(--accent-dim) !important;
+  }
+  .comment-input::placeholder { color: var(--text3); opacity: 0.5; }
+  .tier-comment-spacer { flex: 0; }
+  .tier-comment .rm { cursor: pointer; color: var(--text3); font-size: 13px; transition: color 0.1s; padding: 0 2px; flex-shrink: 0; }
+  .tier-comment .rm:hover { color: var(--danger); }
+  .add-comment-row { padding: 0; }
+
   .add-tier-wrap { padding: 6px 8px 8px; }
   .add-tier-row { display: flex; gap: 6px; align-items: center; }
   .add-tier-row input { flex: 1; }
@@ -1154,8 +1208,8 @@ function addItemToSelected(itemName) {
   if (!trader) return;
   const tier = trader.tiers.find(t => t.id === selectedTier.tierId);
   if (!tier) return;
-  if (tier.items.find(i => i.name === itemName)) { notify('Item already in tier'); return; }
-  tier.items.push({ name: itemName, amt: 1, chance: 0.75 });
+  if (tier.items.find(i => i.type === 'item' && i.name === itemName)) { notify('Item already in tier'); return; }
+  tier.items.push({ type: 'item', name: itemName, amt: 1, chance: 0.75 });
   renderTraders();
   renderExport();
   notify('+ ' + itemName);
@@ -1166,9 +1220,54 @@ function removeItem(traderId, tierId, itemName) {
   if (!trader) return;
   const tier = trader.tiers.find(t => t.id === tierId);
   if (!tier) return;
-  tier.items = tier.items.filter(i => i.name !== itemName);
+  tier.items = tier.items.filter(i => !(i.type === 'item' && i.name === itemName));
   renderTraders();
   renderExport();
+}
+
+function removeEntry(traderId, tierId, idx) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  tier.items.splice(idx, 1);
+  renderTraders();
+  renderExport();
+}
+
+function moveEntry(traderId, tierId, idx, dir) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= tier.items.length) return;
+  const tmp = tier.items[idx];
+  tier.items[idx] = tier.items[newIdx];
+  tier.items[newIdx] = tmp;
+  renderTraders();
+  renderExport();
+}
+
+function addComment(traderId, tierId) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  tier.items.push({ type: 'comment', text: '' });
+  renderTraders();
+  renderExport();
+}
+
+function updateComment(traderId, tierId, idx, value) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  if (tier.items[idx] && tier.items[idx].type === 'comment') {
+    tier.items[idx].text = value;
+    renderExport();
+  }
 }
 
 function updateItemField(traderId, tierId, itemName, field, value) {
@@ -1176,7 +1275,7 @@ function updateItemField(traderId, tierId, itemName, field, value) {
   if (!trader) return;
   const tier = trader.tiers.find(t => t.id === tierId);
   if (!tier) return;
-  const item = tier.items.find(i => i.name === itemName);
+  const item = tier.items.find(i => i.type === 'item' && i.name === itemName);
   if (!item) return;
   item[field] = field === 'amt' ? Math.max(1, parseInt(value)||1) : Math.min(1, Math.max(0, parseFloat(value)||0));
   renderExport();
@@ -1187,9 +1286,10 @@ function updateItemField(traderId, tierId, itemName, field, value) {
 function buildOverwriteMap(trader) {
   const map = {}; // itemName -> [{tierId, tierName}]
   for (const tier of trader.tiers) {
-    for (const item of tier.items) {
-      if (!map[item.name]) map[item.name] = [];
-      map[item.name].push({ tierId: tier.id, tierName: tier.name });
+    for (const entry of tier.items) {
+      if (entry.type === 'comment') continue;
+      if (!map[entry.name]) map[entry.name] = [];
+      map[entry.name].push({ tierId: tier.id, tierName: tier.name });
     }
   }
   return map;
@@ -1228,8 +1328,18 @@ function parseTraderLtx(text, traderName) {
   const lines = text.split(/\r?\n/);
 
   for (let line of lines) {
+    const raw = line;
     line = line.trim();
-    if (!line || line.startsWith(';')) continue;
+    if (!line) continue;
+
+    // Comment line
+    if (line.startsWith(';')) {
+      if (currentTier) {
+        const commentText = line.slice(1).trim();
+        currentTier.items.push({ type: 'comment', text: commentText });
+      }
+      continue;
+    }
 
     // Match [section_name] or [section_name]:parent1,parent2
     const headerMatch = line.match(/^\[([^\]]+)\](?::(.+))?/);
@@ -1247,6 +1357,7 @@ function parseTraderLtx(text, traderName) {
       const m = line.match(/^([a-zA-Z0-9_.\-]+)\s*=\s*([0-9]+)\s*,\s*([0-9.]+)/);
       if (m) {
         currentTier.items.push({
+          type: 'item',
           name: m[1].trim(),
           amt: parseInt(m[2]) || 1,
           chance: parseFloat(m[3]) || 0.5
@@ -1312,44 +1423,65 @@ function renderTraders() {
         <div class="tier-header" onclick="selectTier(${trader.id}, ${tier.id})">
           <div class="tier-label">[${escHtml(tier.name)}]</div>
           ${tier.parent ? `<div class="tier-parent">:${escHtml(tier.parent)}</div>` : ''}
-          <div class="tier-count">${tier.items.length}</div>
+          <div class="tier-count">${tier.items.filter(e => e.type === 'item').length}</div>
           <button class="btn small danger" style="margin-left:4px" onclick="event.stopPropagation();removeTier(${trader.id},${tier.id})">✕</button>
         </div>`;
 
       if (tier.items.length > 0) {
         html += '<div class="tier-items-list">';
-        for (const item of tier.items) {
-          const ow = getOverwriteStatus(trader, tier.id, item.name);
-          let owBadge = '';
-          let rowClass = 'tier-item';
-          if (ow) {
-            if (ow.isOverwritten && ow.isOverwriting) {
-              rowClass += ' ow-both';
-              owBadge = `<span class="ow-badge ow-badge-both" title="Overwritten by [${escHtml(ow.overwrittenBy)}] and overwrites [${escHtml(ow.overwrites)}]">⚠ mid</span>`;
-            } else if (ow.isOverwritten) {
-              rowClass += ' ow-dead';
-              owBadge = `<span class="ow-badge ow-badge-dead" title="Overwritten by [${escHtml(ow.overwrittenBy)}] — this entry has no effect">✕ overwritten by [${escHtml(ow.overwrittenBy)}]</span>`;
-            } else if (ow.isOverwriting) {
-              rowClass += ' ow-active';
-              owBadge = `<span class="ow-badge ow-badge-active" title="Overrides entry in [${escHtml(ow.overwrites)}]">↑ overrides [${escHtml(ow.overwrites)}]</span>`;
+        for (let idx = 0; idx < tier.items.length; idx++) {
+          const entry = tier.items[idx];
+          const isFirst = idx === 0;
+          const isLast = idx === tier.items.length - 1;
+          const moveButtons = `
+            <span class="move-btn${isFirst ? ' disabled' : ''}" onclick="moveEntry(${trader.id},${tier.id},${idx},-1)" title="Move up">▲</span>
+            <span class="move-btn${isLast ? ' disabled' : ''}" onclick="moveEntry(${trader.id},${tier.id},${idx},1)" title="Move down">▼</span>`;
+
+          if (entry.type === 'comment') {
+            html += `<div class="tier-comment">
+              <span class="comment-prefix">;</span>
+              <input type="text" class="comment-input" value="${escHtml(entry.text)}"
+                placeholder="comment text..."
+                onchange="updateComment(${trader.id},${tier.id},${idx},this.value)"
+                oninput="updateComment(${trader.id},${tier.id},${idx},this.value)">
+              <span class="tier-comment-spacer"></span>
+              ${moveButtons}
+              <span class="rm" onclick="removeEntry(${trader.id},${tier.id},${idx})">✕</span>
+            </div>`;
+          } else {
+            const ow = getOverwriteStatus(trader, tier.id, entry.name);
+            let owBadge = '';
+            let rowClass = 'tier-item';
+            if (ow) {
+              if (ow.isOverwritten && ow.isOverwriting) {
+                rowClass += ' ow-both';
+                owBadge = `<span class="ow-badge ow-badge-both" title="Overwritten by [${escHtml(ow.overwrittenBy)}] and overwrites [${escHtml(ow.overwrites)}]">⚠ mid</span>`;
+              } else if (ow.isOverwritten) {
+                rowClass += ' ow-dead';
+                owBadge = `<span class="ow-badge ow-badge-dead" title="Overwritten by [${escHtml(ow.overwrittenBy)}] — this entry has no effect">✕ overwritten by [${escHtml(ow.overwrittenBy)}]</span>`;
+              } else if (ow.isOverwriting) {
+                rowClass += ' ow-active';
+                owBadge = `<span class="ow-badge ow-badge-active" title="Overrides entry in [${escHtml(ow.overwrites)}]">↑ overrides [${escHtml(ow.overwrites)}]</span>`;
+              }
             }
+            const dispName = itemNames[entry.name]
+              ? `<span class="tier-item-disp-name" title="${escHtml(itemNames[entry.name])}">${escHtml(itemNames[entry.name])}</span>`
+              : `<span class="tier-item-spacer"></span>`;
+            html += `<div class="${rowClass}">
+              <span class="tier-item-name" title="${escHtml(entry.name)}">${escHtml(entry.name)}</span>
+              ${dispName}
+              ${owBadge}
+              <input type="number" min="1" max="99" value="${entry.amt}"
+                onchange="updateItemField(${trader.id},${tier.id},'${entry.name}','amt',this.value)"
+                title="Amount" style="width:54px">
+              <span class="tier-item-sep">,</span>
+              <input type="number" min="0" max="1" step="0.01" value="${entry.chance}"
+                onchange="updateItemField(${trader.id},${tier.id},'${entry.name}','chance',this.value)"
+                title="Chance (0-1)" style="width:62px">
+              ${moveButtons}
+              <span class="rm" onclick="removeItem(${trader.id},${tier.id},'${entry.name}')">✕</span>
+            </div>`;
           }
-          const dispName = itemNames[item.name]
-            ? `<span class="tier-item-disp-name" title="${escHtml(itemNames[item.name])}">${escHtml(itemNames[item.name])}</span>`
-            : `<span class="tier-item-spacer"></span>`;
-          html += `<div class="${rowClass}">
-            <span class="tier-item-name" title="${escHtml(item.name)}">${escHtml(item.name)}</span>
-            ${dispName}
-            ${owBadge}
-            <input type="number" min="1" max="99" value="${item.amt}"
-              onchange="updateItemField(${trader.id},${tier.id},'${item.name}','amt',this.value)"
-              title="Amount" style="width:54px">
-            <span class="tier-item-sep">,</span>
-            <input type="number" min="0" max="1" step="0.01" value="${item.chance}"
-              onchange="updateItemField(${trader.id},${tier.id},'${item.name}','chance',this.value)"
-              title="Chance (0-1)" style="width:62px">
-            <span class="rm" onclick="removeItem(${trader.id},${tier.id},'${item.name}')">✕</span>
-          </div>`;
         }
         html += '</div>';
       }
@@ -1364,6 +1496,9 @@ function renderTraders() {
           <input type="text" id="tierParent_${trader.id}" placeholder="Parent (optional)" style="width:130px">
           <button class="btn primary small" onclick="addTier(${trader.id})">+ Tier</button>
         </div>
+        ${selectedTier?.traderId === trader.id ? `<div class="add-comment-row">
+          <button class="btn small" style="width:100%;margin-top:4px;color:var(--text3);border-style:dashed" onclick="addComment(${trader.id},${selectedTier.tierId})">+ Comment in selected tier</button>
+        </div>` : ''}
       </div>
     </div>`; // trader-card
   }
@@ -1408,11 +1543,16 @@ function renderExport() {
       if (tier.items.length === 0) {
         out += '; (empty)\n';
       } else {
-        const maxLen = Math.max(...tier.items.map(i => i.name.length));
-        for (const item of tier.items) {
-          const pad = ' '.repeat(Math.max(1, maxLen - item.name.length + 4));
-          const chance = item.chance % 1 === 0 ? item.chance.toFixed(0) : item.chance;
-          out += `${item.name}${pad}= ${item.amt}, ${chance}\n`;
+        const itemEntries = tier.items.filter(e => e.type === 'item');
+        const maxLen = itemEntries.length > 0 ? Math.max(...itemEntries.map(i => i.name.length)) : 0;
+        for (const entry of tier.items) {
+          if (entry.type === 'comment') {
+            out += entry.text ? `; ${entry.text}\n` : ';\n';
+          } else {
+            const pad = ' '.repeat(Math.max(1, maxLen - entry.name.length + 4));
+            const chance = entry.chance % 1 === 0 ? entry.chance.toFixed(0) : entry.chance;
+            out += `${entry.name}${pad}= ${entry.amt}, ${chance}\n`;
+          }
         }
       }
       out += '\n';

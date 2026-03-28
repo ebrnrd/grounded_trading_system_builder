@@ -1092,11 +1092,15 @@ function renderCatList(filter) {
     if (visible.length === 0) continue;
     totalVisible += visible.length;
     const catId = 'cat_' + cat.replace(/[^a-z0-9]/gi, '_');
+    
+    const addedCount = traderItems ? items.filter(i => traderItems.has(i)).length : 0;
+    const addedBadge = addedCount > 0 ? `<span class="badge" style="margin-right:4px">${addedCount}</span>` : '';
+    
     html += `<div class="cat-group">
       <div class="cat-header" onclick="toggleCat('${catId}')">
         <span class="cat-chevron${fl ? ' open' : ''}" id="chev_${catId}">▶</span>
         <span>${cat}</span>
-        <span style="margin-left:auto;font-size:9px;color:var(--text3)">${visible.length}</span>
+        <span style="margin-left:auto;font-size:9px;color:var(--text3)">${addedBadge}${visible.length}</span>
       </div>
       <div class="cat-items${fl ? ' open' : ''}" id="${catId}">`;
     for (const item of visible) {

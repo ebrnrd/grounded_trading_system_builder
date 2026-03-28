@@ -218,6 +218,12 @@
     flex-shrink: 0;
   }
   .item-row:hover .add-icon { opacity: 1; }
+  .item-in-trader-icon {
+    color: var(--accent);
+    font-size: 12px;
+    margin-right: 4px;
+    flex-shrink: 0;
+  }
   .item-disp-name {
     font-family: var(--sans);
     font-size: 11px;
@@ -519,7 +525,7 @@
     border: 1px solid #5a4010;
   }
   .tier-item.ow-dead { background: #120d0d; }
-  .tier-item.ow-dead .tier-item-name { color: #6a4040; text-decoration: line-through; }
+  .tier-item.ow-dead .tier-item-name { color: #6a4040; }
   .tier-item.ow-active { background: #0a140a; }
   .tier-item.ow-both { background: #130f08; }
 
@@ -1055,12 +1061,29 @@ function initDefault() {
   }
 }
 
+// ── GET ALL ITEMS FROM A TRADER ──
+function getTraderItems(traderId) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return new Set();
+  const items = new Set();
+  for (const tier of trader.tiers) {
+    for (const entry of tier.items) {
+      if (entry.type === 'item') {
+        items.add(entry.name);
+      }
+    }
+  }
+  return items;
+}
+
 // ── CATEGORY RENDER ──
 function renderCatList(filter) {
   const el = document.getElementById('catList');
   const fl = filter.toLowerCase();
   let html = '';
   let totalVisible = 0;
+
+  const traderItems = selectedTier ? getTraderItems(selectedTier.traderId) : null;
 
   for (const [cat, items] of Object.entries(categories)) {
     const visible = fl
@@ -1077,8 +1100,11 @@ function renderCatList(filter) {
       </div>
       <div class="cat-items${fl ? ' open' : ''}" id="${catId}">`;
     for (const item of visible) {
+      const hasIcon = traderItems && traderItems.has(item);
+      const inTraderIcon = hasIcon ? '<span class="item-in-trader-icon" title="Already in this trader">✓</span>' : '';
       const dispName = itemNames[item] ? `<span class="item-disp-name">${escHtml(itemNames[item])}</span>` : '';
       html += `<div class="item-row" onclick="addItemToSelected('${item}')">
+        ${inTraderIcon}
         <span>${item}</span>
         ${dispName}
         <span class="add-icon">+</span>
@@ -1124,7 +1150,7 @@ function parseItemNamesXml(text) {
     const id = m[1].trim();
     const displayText = m[2].trim();
     // Skip empty or formatting-only text
-    if (!displayText || displayText.startsWith('%c[') || displayText.startsWith('\\n')) continue;
+    if (!displayTex t || displayText.startsWith('%c[') || displayText.startsWith('\\n')) continue;
     // Skip descriptions
     if (id.endsWith('_descr') || id.endsWith('_desc') || id.endsWith('_description')) continue;
 
@@ -1213,6 +1239,7 @@ function removeTrader(id) {
   renderTraders();
   renderExportSelect();
   renderExport();
+  renderCatList(document.getElementById('searchInput').value);
 }
 
 function addTier(traderId) {
@@ -1239,6 +1266,7 @@ function removeTier(traderId, tierId) {
   }
   renderTraders();
   renderExport();
+  renderCatList(document.getElementById('searchInput').value);
 }
 
 function selectTier(traderId, tierId) {
@@ -1249,6 +1277,7 @@ function selectTier(traderId, tierId) {
   }
   updateSelIndicator();
   renderTraders();
+  renderCatList(document.getElementById('searchInput').value);
 }
 
 function updateSelIndicator() {
@@ -1275,6 +1304,7 @@ function addItemToSelected(itemName) {
   tier.items.push({ type: 'item', name: itemName, amt: 1, chance: 0.75 });
   renderTraders();
   renderExport();
+  renderCatList(document.getElementById('searchInput').value);
   notify('+ ' + itemName);
 }
 
@@ -1286,6 +1316,7 @@ function removeItem(traderId, tierId, itemName) {
   tier.items = tier.items.filter(i => !(i.type === 'item' && i.name === itemName));
   renderTraders();
   renderExport();
+  renderCatList(document.getElementById('searchInput').value);
 }
 
 function removeEntry(traderId, tierId, idx) {
@@ -1296,6 +1327,7 @@ function removeEntry(traderId, tierId, idx) {
   tier.items.splice(idx, 1);
   renderTraders();
   renderExport();
+  renderCatList(document.getElementById('searchInput').value);
 }
 
 function moveEntry(traderId, tierId, idx, dir) {

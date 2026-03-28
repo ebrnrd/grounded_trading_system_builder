@@ -562,6 +562,7 @@
       <input type="file" id="namesFiles" accept=".xml" multiple>
     </label>
     <button class="btn primary" onclick="exportAll()">⬇ Export .ltx</button>
+    <button class="btn" onclick="clearCache()" title="Clear cached categories and names">✕ Clear Cache</button>
   </div>
 </header>
 
@@ -632,6 +633,44 @@ let traders = [];    // [{ id, name, tiers: [{ id, name, parent, items: [{name,a
 let selectedTier = null; // { traderId, tierId }
 let uid = 1;
 const genId = () => uid++;
+
+// ── LOCALSTORAGE CACHE ──
+const CACHE_KEY_CATS = 'trader_builder_categories';
+const CACHE_KEY_NAMES = 'trader_builder_names';
+
+function saveCategoriesToCache(text) {
+  try { localStorage.setItem(CACHE_KEY_CATS, text); } catch(e) { console.warn('Failed to save categories to cache:', e); }
+}
+
+function saveNamesToCache(names) {
+  try { localStorage.setItem(CACHE_KEY_NAMES, JSON.stringify(names)); } catch(e) { console.warn('Failed to save names to cache:', e); }
+}
+
+function loadCategoriesFromCache() {
+  const cached = localStorage.getItem(CACHE_KEY_CATS);
+  if (cached) {
+    categories = parseLtx(cached);
+    return true;
+  }
+  return false;
+}
+
+function loadNamesFromCache() {
+  const cached = localStorage.getItem(CACHE_KEY_NAMES);
+  if (cached) {
+    try {
+      itemNames = JSON.parse(cached);
+      return true;
+    } catch(e) { console.warn('Failed to parse cached names:', e); }
+  }
+  return false;
+}
+
+function clearCache() {
+  localStorage.removeItem(CACHE_KEY_CATS);
+  localStorage.removeItem(CACHE_KEY_NAMES);
+  notify('Cache cleared');
+}
 
 // ── BUILT-IN DEFAULT CATEGORIES (from uploaded file) ──
 const DEFAULT_LTX = `[wpn_pistol_rus_low]
@@ -989,9 +1028,23 @@ function parseLtx(text) {
 
 // ── INIT WITH DEFAULT ──
 function initDefault() {
-  categories = parseLtx(DEFAULT_LTX);
+  const hadCats = loadCategoriesFromCache();
+  const hadNames = loadNamesFromCache();
+  
+  if (!hadCats) {
+    categories = parseLtx(DEFAULT_LTX);
+  }
+  
   renderCatList('');
   updateCatCount();
+  
+  if (hadCats && hadNames) {
+    notify('Loaded from cache: ' + Object.keys(categories).length + ' sections, ' + Object.keys(itemNames).length + ' names');
+  } else if (hadCats) {
+    notify('Loaded categories from cache: ' + Object.keys(categories).length + ' sections');
+  } else if (hadNames) {
+    notify('Loaded names from cache: ' + Object.keys(itemNames).length + ' names');
+  }
 }
 
 // ── CATEGORY RENDER ──
@@ -1103,9 +1156,10 @@ document.getElementById('namesFiles').addEventListener('change', function(e) {
       mergeItemNames(parsed);
       loaded++;
       if (loaded === files.length) {
+        saveNamesToCache(itemNames);
         renderCatList(document.getElementById('searchInput').value);
         renderTraders();
-        notify(`Loaded ${files.length} name file${files.length>1?'s':''} — ${Object.keys(itemNames).length} names total`);
+        notify(`Loaded ${files.length} name file${files.length>1?'s':''} — ${Object.keys(itemNames).length} names total (cached)`);
       }
     };
     reader.readAsBinaryString(f);
@@ -1120,9 +1174,10 @@ document.getElementById('catFile').addEventListener('change', function(e) {
   const reader = new FileReader();
   reader.onload = ev => {
     categories = parseLtx(ev.target.result);
+    saveCategoriesToCache(ev.target.result);
     renderCatList(document.getElementById('searchInput').value);
     updateCatCount();
-    notify('Categories loaded: ' + Object.keys(categories).length + ' sections');
+    notify('Categories loaded: ' + Object.keys(categories).length + ' sections (cached)');
   };
   reader.readAsText(f);
   this.value = '';

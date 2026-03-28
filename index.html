@@ -356,10 +356,18 @@
     opacity: 0.4;
     background: var(--accent);
   }
-  .tier-item, .tier-comment {
+  .drag-handle {
     cursor: grab;
+    color: var(--text3);
+    font-size: 14px;
+    padding: 0 4px;
+    user-select: none;
+    flex-shrink: 0;
   }
-  .tier-item:active, .tier-comment:active {
+  .drag-handle:hover {
+    color: var(--accent);
+  }
+  .drag-handle:active {
     cursor: grabbing;
   }
 
@@ -1324,7 +1332,7 @@ function initDragAndDrop() {
     if (container._sortable) return;
     container._sortable = new Sortable(container, {
       animation: 150,
-      handle: '.tier-item, .tier-comment',
+      handle: '.drag-handle',
       ghostClass: 'sortable-ghost',
       onEnd: function(evt) {
         const tierId = parseInt(evt.to.dataset.tierId);
@@ -1520,6 +1528,7 @@ function renderTraders() {
 
           if (entry.type === 'comment') {
             html += `<div class="tier-comment" data-idx="${idx}">
+              <span class="drag-handle">⋮⋮</span>
               <span class="comment-prefix">;</span>
               <input type="text" class="comment-input" value="${escHtml(entry.text)}"
                 placeholder="comment text..."
@@ -1548,6 +1557,7 @@ function renderTraders() {
               ? `<span class="tier-item-disp-name" title="${escHtml(itemNames[entry.name])}">${escHtml(itemNames[entry.name])}</span>`
               : `<span class="tier-item-spacer"></span>`;
             html += `<div class="${rowClass}" data-idx="${idx}">
+              <span class="drag-handle">⋮⋮</span>
               <span class="tier-item-name" title="${escHtml(entry.name)}">${escHtml(entry.name)}</span>
               ${dispName}
               ${owBadge}

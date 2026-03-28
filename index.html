@@ -1077,9 +1077,18 @@ function getTraderItems(traderId) {
 }
 
 // ── CATEGORY RENDER ──
+function getOpenCatIds() {
+  const open = {};
+  document.querySelectorAll('.cat-items.open').forEach(el => {
+    open[el.id] = true;
+  });
+  return open;
+}
+
 function renderCatList(filter) {
   const el = document.getElementById('catList');
   const fl = filter.toLowerCase();
+  const wasOpen = getOpenCatIds();
   let html = '';
   let totalVisible = 0;
 
@@ -1095,14 +1104,15 @@ function renderCatList(filter) {
     
     const addedCount = traderItems ? items.filter(i => traderItems.has(i)).length : 0;
     const addedBadge = addedCount > 0 ? `<span class="badge" style="margin-right:4px">${addedCount}</span>` : '';
+    const isOpen = fl || wasOpen['cat_' + cat.replace(/[^a-z0-9]/gi, '_')];
     
     html += `<div class="cat-group">
       <div class="cat-header" onclick="toggleCat('${catId}')">
-        <span class="cat-chevron${fl ? ' open' : ''}" id="chev_${catId}">▶</span>
+        <span class="cat-chevron${isOpen ? ' open' : ''}" id="chev_${catId}">▶</span>
         <span>${cat}</span>
         <span style="margin-left:auto;font-size:9px;color:var(--text3)">${addedBadge}${visible.length}</span>
       </div>
-      <div class="cat-items${fl ? ' open' : ''}" id="${catId}">`;
+      <div class="cat-items${isOpen ? ' open' : ''}" id="${catId}">`;
     for (const item of visible) {
       const hasIcon = traderItems && traderItems.has(item);
       const inTraderIcon = hasIcon ? '<span class="item-in-trader-icon" title="Already in this trader">✓</span>' : '';

@@ -4,6 +4,8 @@ A browser-based GUI tool for building and editing trading system configurations 
 
 ---
 
+**Use it here:** https://ebrnrd.github.io/grounded_trading_system_builder/
+
 ## What it does
 
 Grounded trading system profiles define what items are available through tiered groups, where each item entry is a pair of values: how many units can spawn, and the probability that a single unit actually appears. Writing and maintaining these sections by hand is tedious and error-prone. This tool gives you a graphical interface to do it instead, and exports clean configuration output ready to paste directly into your mod files.

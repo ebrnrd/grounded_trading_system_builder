@@ -202,17 +202,17 @@
   .group-sel-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; display: none; }
   .group-card.selected .group-sel-dot { display: block; }
 
-  .group-name-label { font-family: var(--mono); font-size: 10px; color: var(--accent2); letter-spacing: 1px; flex: 1; }
+  .group-name-label { font-family: var(--mono); font-size: 10px; color: var(--accent2); letter-spacing: 1px; }
   .group-name-label.unnamed { color: var(--text3); font-style: italic; }
   .group-name-label { cursor: pointer; padding: 1px 4px; margin: -1px -4px; border-radius: 2px; }
   .group-name-label:hover { background: var(--bg3); }
   .rename-input {
     font-family: var(--mono); font-size: 10px; color: var(--accent2); letter-spacing: 1px;
     background: var(--bg); border: 1px solid var(--accent); border-radius: 2px;
-    padding: 1px 4px; width: 100px; outline: none;
+    padding: 1px 4px; width: auto; min-width: 40px; max-width: 200px; outline: none;
   }
 
-  .group-item-count { font-family: var(--mono); font-size: 9px; color: var(--text3); background: var(--bg3); padding: 1px 5px; border-radius: 2px; border: 1px solid var(--border); }
+  .group-item-count { font-family: var(--mono); font-size: 9px; color: var(--text3); background: var(--bg3); padding: 1px 5px; border-radius: 2px; border: 1px solid var(--border); margin-left: auto; }
 
   .add-group-wrap {
     padding: 4px 8px; background: #0c100a;

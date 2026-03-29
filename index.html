@@ -830,8 +830,8 @@ function getTraderItems(traderId) {
   const items = new Set();
   for (const tier of trader.tiers)
     for (const group of tier.groups)
-      for (const e of group.items)
-        if (e.type === 'item') items.add(e.name);
+      for (const e of (group.items || []))
+        if (e && e.type === 'item') items.add(e.name);
   return items;
 }
 
@@ -1103,7 +1103,8 @@ function addItemToSelected(itemName) {
   if (!selectedGroup) { notify('Select a group first'); return; }
   const group = getGroup(selectedGroup.traderId, selectedGroup.tierId, selectedGroup.groupId);
   if (!group) return;
-  if (group.items.find(i => i.type === 'item' && i.name === itemName)) { notify('Item already in group'); return; }
+  if (!group.items) group.items = [];
+  if (group.items.find(i => i && i.type === 'item' && i.name === itemName)) { notify('Item already in group'); return; }
   group.items.push({ type: 'item', name: itemName, amt: 1, chance: 0.75 });
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
@@ -1137,6 +1138,7 @@ function toggleTier(traderId, tierId) {
 function removeEntry(traderId, tierId, groupId, idx) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
+  if (!group.items) return;
   group.items.splice(idx, 1);
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
@@ -1152,13 +1154,14 @@ function addComment(traderId, tierId, groupId) {
 function updateComment(traderId, tierId, groupId, idx, value) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
-  if (group.items[idx]?.type === 'comment') { group.items[idx].text = value; renderExport(); }
+  if (!group.items || !group.items[idx]) return;
+  if (group.items[idx].type === 'comment') { group.items[idx].text = value; renderExport(); }
 }
 
 function updateItemField(traderId, tierId, groupId, itemName, field, value) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
-  const item = group.items.find(i => i.type === 'item' && i.name === itemName);
+  const item = group.items ? group.items.find(i => i && i.type === 'item' && i.name === itemName) : undefined;
   if (!item) return;
   item[field] = field === 'amt' ? Math.max(1, parseInt(value)||1) : Math.min(1, Math.max(0, parseFloat(value)||0));
   renderExport();
@@ -1201,11 +1204,17 @@ function getOverwriteStatus(trader, tierId, itemName) {
 let _sortables = [];
 function syncGroupItemOrder(traderId, tierId, groupId) {
   const group = getGroup(traderId, tierId, groupId);
-  if (!group) return;
+  if (!group || !group.items) return;
   const newOrder = [];
   document.querySelectorAll(`.group-items-list[data-group-id="${groupId}"] > *`).forEach(el => {
+    const name = el.dataset.name;
     const idx = parseInt(el.dataset.idx);
-    if (!isNaN(idx)) newOrder.push(group.items[idx]);
+    if (name && !name.startsWith('comment_')) {
+      const item = group.items.find(i => i && i.name === name);
+      if (item) newOrder.push(item);
+    } else if (!isNaN(idx) && group.items[idx]) {
+      newOrder.push(group.items[idx]);
+    }
   });
   group.items = newOrder;
   renderTraders(); renderExport();
@@ -1331,7 +1340,7 @@ document.getElementById('importFile').addEventListener('change', function(e) {
     traders.push(trader);
     document.getElementById('newTraderName').value = '';
     renderTraders(); renderExportSelect(); renderExport();
-    const totalItems  = trader.tiers.reduce((s,t)=>s+t.groups.reduce((gs,g)=>gs+g.items.filter(i=>i.type==='item').length,0),0);
+    const totalItems  = trader.tiers.reduce((s,t)=>s+t.groups.reduce((gs,g)=>gs+(g.items?g.items.filter(i=>i && i.type==='item').length:0),0),0);
     const totalGroups = trader.tiers.reduce((s,t)=>s+t.groups.length,0);
     notify(`Imported "${name}": ${trader.tiers.length} tiers, ${totalGroups} groups, ${totalItems} items`);
   };
@@ -1360,7 +1369,7 @@ function renderTraders() {
     if (!trader.tiers.length) html += '<div class="empty" style="padding:10px">No tiers yet</div>';
 
     for (const tier of trader.tiers) {
-      const totalItems = tier.groups.reduce((s,g)=>s+g.items.filter(e=>e.type==='item').length, 0);
+      const totalItems = tier.groups.reduce((s,g)=>s+(g.items?g.items.filter(e=>e && e.type==='item').length:0), 0);
       const tierCollapsed = tier._collapsed ? ' collapsed' : '';
       html += `<div class="tier-card${tierCollapsed}" id="tier_${trader.id}_${tier.id}">
         <div class="tier-header" onclick="toggleTier(${trader.id},${tier.id})">
@@ -1376,7 +1385,7 @@ function renderTraders() {
 
       for (const group of tier.groups) {
         const isSel   = selectedGroup?.groupId === group.id && selectedGroup?.tierId === tier.id;
-        const itemCnt = group.items.filter(e=>e.type==='item').length;
+        const itemCnt = group.items ? group.items.filter(e=>e && e.type==='item').length : 0;
         const groupLabel = group.name ? escHtml(group.name) : '<span style="color:var(--text3);font-style:italic">unnamed</span>';
 
         html += `<div class="group-card${isSel?' selected':''}" data-group-id="${group.id}">
@@ -1390,8 +1399,10 @@ function renderTraders() {
           </div>
           <div class="group-items-list" data-trader-id="${trader.id}" data-tier-id="${tier.id}" data-group-id="${group.id}">`;
 
-        for (let idx = 0; idx < group.items.length; idx++) {
-          const entry = group.items[idx];
+        const items = group.items || [];
+        for (let idx = 0; idx < items.length; idx++) {
+          const entry = items[idx];
+          if (!entry) continue;
           if (entry.type === 'comment') {
             html += `<div class="tier-comment" data-idx="${idx}">
               <span class="drag-handle">⋮⋮</span>
@@ -1421,7 +1432,7 @@ function renderTraders() {
               ? `<span class="tier-item-disp-name" title="${escHtml(entryName)}">${escHtml(entryName)}</span>`
               : `<span class="tier-item-spacer"></span>`;
             const entryDescr = getItemDescription(entry.name);
-            html += `<div class="${rowClass}" data-idx="${idx}">
+            html += `<div class="${rowClass}" data-idx="${idx}" data-name="${escHtml(entry.name)}">
               <span class="drag-handle">⋮⋮</span>
               <span class="tier-item-name" data-tooltip="${escHtml(entryDescr)}">${escHtml(entry.name)}</span>
               ${dispName}${owBadge}
@@ -1499,14 +1510,15 @@ function renderExport() {
     }
     for (const tier of trader.tiers) {
       out += (tier.parent ? `[${tier.name}]:${tier.parent}` : `[${tier.name}]`) + '\n';
-      const allItems = tier.groups.flatMap(g=>g.items.filter(e=>e.type==='item'));
+      const allItems = tier.groups.flatMap(g=>g.items ? g.items.filter(e=>e && e.type==='item') : []);
       if (!tier.groups.length || !allItems.length) {
         out += '; (empty)\n';
       } else {
         const maxLen = Math.max(...allItems.map(i=>i.name.length));
         for (const group of tier.groups) {
           if (group.name) out += `; ${group.name}\n`;
-          for (const entry of group.items) {
+          for (const entry of (group.items || [])) {
+            if (!entry) continue;
             if (entry.type === 'comment') {
               out += entry.text ? `; ${entry.text}\n` : ';\n';
             } else {

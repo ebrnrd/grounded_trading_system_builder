@@ -170,7 +170,10 @@
 
   .tier-card { background: var(--bg); border: 1px solid var(--border); border-radius: 3px; overflow: hidden; }
   .tier-card.collapsed .groups-list { display: none; }
+  .tier-card.collapsed .add-group-wrap { display: none; }
+  .tier-card.collapsed .group-actions { display: none; }
   .tier-card.collapsed .tier-header { border-bottom: none; }
+  .trader-card.collapsed .add-tier-wrap { display: none; }
   .tier-header {
     padding: 6px 10px; display: flex; align-items: center; gap: 8px;
     background: var(--bg2); border-bottom: 1px solid var(--border); cursor: pointer;
@@ -847,6 +850,7 @@ function getItemDescription(item) {
     || itemDescriptions[item.replace(/_/g, '-')] 
     || itemDescriptions[item.replace(/\./g, '_')] 
     || itemDescriptions[item.replace(/_/g, '-').replace(/\./g, '_')] 
+    || (item.startsWith('wpn_addon_') ? itemDescriptions['st_' + item.slice(8) + '_descr'] : null)
     || 'No description found';
 }
 function getItemName(item) {
@@ -854,6 +858,7 @@ function getItemName(item) {
     || itemNames[item.replace(/_/g, '-')] 
     || itemNames[item.replace(/\./g, '_')] 
     || itemNames[item.replace(/_/g, '-').replace(/\./g, '_')] 
+    || (item.startsWith('wpn_addon_') ? itemNames['st_' + item.slice(8)] : null)
     || '';
 }
 
@@ -1123,7 +1128,15 @@ function removeItem(traderId, tierId, groupId, itemName) {
 function toggleTrader(id) {
   const trader = traders.find(t => t.id === id);
   if (!trader) return;
+  const wasCollapsed = trader._collapsed;
   trader._collapsed = !trader._collapsed;
+  if (!wasCollapsed && trader._collapsed) {
+    if (selectedGroup && selectedGroup.traderId === id) {
+      selectedGroup = null;
+      updateSelIndicator();
+      renderCatList(document.getElementById('searchInput').value);
+    }
+  }
   renderTraders();
 }
 
@@ -1132,7 +1145,15 @@ function toggleTier(traderId, tierId) {
   if (!trader) return;
   const tier = trader.tiers.find(t => t.id === tierId);
   if (!tier) return;
+  const wasCollapsed = tier._collapsed;
   tier._collapsed = !tier._collapsed;
+  if (!wasCollapsed && tier._collapsed) {
+    if (selectedGroup && selectedGroup.traderId === traderId && selectedGroup.tierId === tierId) {
+      selectedGroup = null;
+      updateSelIndicator();
+      renderCatList(document.getElementById('searchInput').value);
+    }
+  }
   renderTraders();
 }
 

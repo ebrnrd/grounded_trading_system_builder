@@ -1113,7 +1113,7 @@ function addItemToSelected(itemName) {
 function removeItem(traderId, tierId, groupId, itemName) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
-  group.items = group.items.filter(i => !(i.type === 'item' && i.name === itemName));
+  group.items = group.items.filter(i => !(i && i.type === 'item' && i.name === itemName));
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
 }
@@ -1178,7 +1178,7 @@ function buildOverwriteMap(trader) {
   for (const tier of trader.tiers)
     for (const group of tier.groups)
       for (const e of group.items) {
-        if (e.type !== 'item') continue;
+        if (!e || e.type !== 'item') continue;
         if (!map[e.name]) map[e.name] = [];
         map[e.name].push({ tierId: tier.id, tierName: tier.name });
       }

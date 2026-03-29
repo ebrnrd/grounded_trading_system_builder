@@ -918,8 +918,8 @@ function parseItemNamesXml(text) {
   let m;
   while ((m = re.exec(text)) !== null) {
     const id = m[1].trim(), disp = m[2].trim();
-    if (!disp || disp.startsWith('%c[') || disp.startsWith('\\n')) continue;
     if (id.endsWith('_descr') || id.endsWith('_desc') || id.endsWith('_description')) {
+      if (!disp) continue;
       let key = null;
       if (id.startsWith('st_')) { key = id.slice(3); if (key.endsWith('_descr')) key = key.slice(0,-6); else if (key.endsWith('_desc')) key = key.slice(0,-5); else if (key.endsWith('_description')) key = key.slice(0,-12); }
       else if (id.endsWith('_descr')) { key = id.slice(0,-6); }
@@ -928,6 +928,7 @@ function parseItemNamesXml(text) {
       if (!key || descResult[key]) continue;
       descResult[key] = disp;
     } else {
+      if (!disp || disp.startsWith('%c[') || disp.startsWith('\\n')) continue;
       let key = null;
       if (id.startsWith('st_')) { key = id.slice(3); if (key.endsWith('_name')) key = key.slice(0,-5); }
       else if (id.endsWith('_name')) { key = id.slice(0,-5); }

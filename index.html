@@ -343,6 +343,19 @@
     font-size: 20px; cursor: pointer; margin-top: -10px;
   }
   .modal-close:hover { color: var(--text); }
+
+  [data-tooltip] { position: relative; }
+  [data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+    background: var(--bg4); border: 1px solid var(--border); border-radius: 4px;
+    padding: 8px 12px; max-width: 400px; white-space: pre-wrap; word-break: break-word;
+    font-family: var(--sans); font-size: 12px; color: var(--text);
+    z-index: 100; pointer-events: none; white-space: normal;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4); margin-top: 6px;
+  }
+  .item-row[data-tooltip]:hover::after { left: 0; transform: none; }
+  .tier-item-name[data-tooltip]:hover::after { left: 0; transform: none; }
 </style>
 </head>
 <body>
@@ -438,6 +451,7 @@
 // traders: [{id, name, tiers: [{id, name, parent, groups: [{id, name, items: [{type,name?,amt?,chance?,text?}]}]}]}]
 let categories = {};
 let itemNames  = {};
+let itemDescriptions = {};
 let traders    = [];
 let selectedGroup = null; // { traderId, tierId, groupId }
 let uid = 1;
@@ -447,9 +461,9 @@ const genId = () => uid++;
 const CACHE_KEY_CATS  = 'trader_builder_categories';
 const CACHE_KEY_NAMES = 'trader_builder_names';
 function saveCategoriesToCache(text) { try { localStorage.setItem(CACHE_KEY_CATS, text); } catch(e) {} }
-function saveNamesToCache(n) { try { localStorage.setItem(CACHE_KEY_NAMES, JSON.stringify(n)); } catch(e) {} }
+function saveNamesToCache() { try { localStorage.setItem(CACHE_KEY_NAMES, JSON.stringify({ names: itemNames, descriptions: itemDescriptions })); } catch(e) {} }
 function loadCategoriesFromCache() { const c = localStorage.getItem(CACHE_KEY_CATS); if (c) { categories = parseLtx(c); return true; } return false; }
-function loadNamesFromCache() { const c = localStorage.getItem(CACHE_KEY_NAMES); if (c) { try { itemNames = JSON.parse(c); return true; } catch(e) {} } return false; }
+function loadNamesFromCache() { const c = localStorage.getItem(CACHE_KEY_NAMES); if (c) { try { const data = JSON.parse(c); itemNames = data.names || {}; itemDescriptions = data.descriptions || {}; return true; } catch(e) {} } return false; }
 function clearCache() { localStorage.removeItem(CACHE_KEY_CATS); localStorage.removeItem(CACHE_KEY_NAMES); notify('Cache cleared'); }
 
 // ── DEFAULT CATEGORIES ──
@@ -828,6 +842,21 @@ function getOpenCatIds() {
   return o;
 }
 
+function getItemDescription(item) {
+  return itemDescriptions[item] 
+    || itemDescriptions[item.replace(/_/g, '-')] 
+    || itemDescriptions[item.replace(/\./g, '_')] 
+    || itemDescriptions[item.replace(/_/g, '-').replace(/\./g, '_')] 
+    || 'No description found';
+}
+function getItemName(item) {
+  return itemNames[item] 
+    || itemNames[item.replace(/_/g, '-')] 
+    || itemNames[item.replace(/\./g, '_')] 
+    || itemNames[item.replace(/_/g, '-').replace(/\./g, '_')] 
+    || '';
+}
+
 function renderCatList(filter) {
   const el = document.getElementById('catList');
   const fl = filter.toLowerCase();
@@ -836,7 +865,12 @@ function renderCatList(filter) {
   const traderItems = selectedGroup ? getTraderItems(selectedGroup.traderId) : null;
 
   for (const [cat, items] of Object.entries(categories)) {
-    const visible = fl ? items.filter(i => i.toLowerCase().includes(fl) || (itemNames[i] && itemNames[i].toLowerCase().includes(fl))) : items;
+    const visible = fl ? items.filter(i => {
+      const itemDash = i.replace(/_/g, '-');
+      return i.toLowerCase().includes(fl) || itemDash.toLowerCase().includes(fl) ||
+        (itemNames[i] && itemNames[i].toLowerCase().includes(fl)) ||
+        (itemNames[itemDash] && itemNames[itemDash].toLowerCase().includes(fl));
+    }) : items;
     if (!visible.length) continue;
     const catId = 'cat_' + cat.replace(/[^a-z0-9]/gi, '_');
     const addedCount = traderItems ? items.filter(i => traderItems.has(i)).length : 0;
@@ -852,8 +886,10 @@ function renderCatList(filter) {
     for (const item of visible) {
       const inTrader = traderItems && traderItems.has(item);
       const icon = inTrader ? '<span class="item-in-trader-icon" title="Already in this trader">✓</span>' : '';
-      const disp = itemNames[item] ? `<span class="item-disp-name">${escHtml(itemNames[item])}</span>` : '';
-      html += `<div class="item-row" onclick="addItemToSelected('${item}')">${icon}<span>${item}</span>${disp}<span class="add-icon">+</span></div>`;
+      const dispName = getItemName(item);
+      const disp = dispName ? `<span class="item-disp-name">${escHtml(dispName)}</span>` : '';
+      const descr = getItemDescription(item);
+      html += `<div class="item-row" onclick="addItemToSelected('${item}')" data-tooltip="${escHtml(descr)}">${icon}<span>${item}</span>${disp}<span class="add-icon">+</span></div>`;
     }
     html += `</div></div>`;
   }
@@ -877,23 +913,33 @@ function updateCatCount() {
 // ── XML NAME FILES ──
 function parseItemNamesXml(text) {
   const result = {};
+  const descResult = {};
   const re = /<string\s+id="([^"]+)"[^>]*>[\s\S]*?<text>([^<]*)<\/text>/g;
   let m;
   while ((m = re.exec(text)) !== null) {
     const id = m[1].trim(), disp = m[2].trim();
     if (!disp || disp.startsWith('%c[') || disp.startsWith('\\n')) continue;
-    if (id.endsWith('_descr') || id.endsWith('_desc') || id.endsWith('_description')) continue;
-    let key = null;
-    if (id.startsWith('st_')) { key = id.slice(3); if (key.endsWith('_name')) key = key.slice(0,-5); }
-    else if (id.endsWith('_name')) { key = id.slice(0,-5); }
-    else { key = id; }
-    if (!key || result[key]) continue;
-    if (key.endsWith('_descr') || key.endsWith('_desc') || key.endsWith('_description')) continue;
-    result[key] = disp;
+    if (id.endsWith('_descr') || id.endsWith('_desc') || id.endsWith('_description')) {
+      let key = null;
+      if (id.startsWith('st_')) { key = id.slice(3); if (key.endsWith('_descr')) key = key.slice(0,-6); else if (key.endsWith('_desc')) key = key.slice(0,-5); else if (key.endsWith('_description')) key = key.slice(0,-12); }
+      else if (id.endsWith('_descr')) { key = id.slice(0,-6); }
+      else if (id.endsWith('_desc')) { key = id.slice(0,-5); }
+      else if (id.endsWith('_description')) { key = id.slice(0,-12); }
+      if (!key || descResult[key]) continue;
+      descResult[key] = disp;
+    } else {
+      let key = null;
+      if (id.startsWith('st_')) { key = id.slice(3); if (key.endsWith('_name')) key = key.slice(0,-5); }
+      else if (id.endsWith('_name')) { key = id.slice(0,-5); }
+      else { key = id; }
+      if (!key || result[key]) continue;
+      if (key.endsWith('_descr') || key.endsWith('_desc') || key.endsWith('_description')) continue;
+      result[key] = disp;
+    }
   }
-  return result;
+  return { names: result, descriptions: descResult };
 }
-function mergeItemNames(n) { Object.assign(itemNames, n); }
+function mergeItemNames(n) { Object.assign(itemNames, n.names); Object.assign(itemDescriptions, n.descriptions); }
 
 document.getElementById('namesFiles').addEventListener('change', function(e) {
   const files = Array.from(e.target.files);
@@ -904,7 +950,7 @@ document.getElementById('namesFiles').addEventListener('change', function(e) {
     reader.onload = ev => {
       mergeItemNames(parseItemNamesXml(ev.target.result));
       if (++loaded === files.length) {
-        saveNamesToCache(itemNames);
+        saveNamesToCache();
         renderCatList(document.getElementById('searchInput').value);
         renderTraders();
         notify(`Loaded ${files.length} name file${files.length>1?'s':''} — ${Object.keys(itemNames).length} names total (cached)`);
@@ -1370,12 +1416,14 @@ function renderTraders() {
                 owBadge = `<span class="ow-badge ow-badge-active" title="Overrides entry in [${escHtml(ow.overwrites)}]">↑ overrides [${escHtml(ow.overwrites)}]</span>`;
               }
             }
-            const dispName = itemNames[entry.name]
-              ? `<span class="tier-item-disp-name" title="${escHtml(itemNames[entry.name])}">${escHtml(itemNames[entry.name])}</span>`
+            const entryName = getItemName(entry.name);
+            const dispName = entryName
+              ? `<span class="tier-item-disp-name" title="${escHtml(entryName)}">${escHtml(entryName)}</span>`
               : `<span class="tier-item-spacer"></span>`;
+            const entryDescr = getItemDescription(entry.name);
             html += `<div class="${rowClass}" data-idx="${idx}">
               <span class="drag-handle">⋮⋮</span>
-              <span class="tier-item-name" title="${escHtml(entry.name)}">${escHtml(entry.name)}</span>
+              <span class="tier-item-name" data-tooltip="${escHtml(entryDescr)}">${escHtml(entry.name)}</span>
               ${dispName}${owBadge}
               <input type="number" min="1" max="99" value="${entry.amt}"
                 onchange="updateItemField(${trader.id},${tier.id},${group.id},'${entry.name}','amt',this.value)"

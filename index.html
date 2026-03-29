@@ -59,7 +59,7 @@
   }
   .logo { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
   .logo span { color: var(--text3); }
-  .header-title { font-size: 20px; font-weight: 700; letter-spacing: 1px; color: var(--text); text-transform: uppercase; }
+  .header-title { font-size: 20px; font-weight: 700; letter-spacing: 1px; color: var(--text); text-transform: uppercase; display: flex; align-items: center; gap: 12px; }
   .header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
 
   .app {
@@ -322,15 +322,53 @@
     padding: 6px 12px; font-family: var(--mono); font-size: 10px;
     color: var(--text3); font-style: italic; opacity: 0.6;
   }
+
+  .modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7); z-index: 1000;
+    display: none; justify-content: center; align-items: center;
+  }
+  .modal-overlay.show { display: flex; }
+  .modal {
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    max-width: 600px; max-height: 80vh; overflow-y: auto;
+    padding: 20px 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  }
+  .modal h2 { margin: 0 0 16px; color: var(--accent); font-size: 18px; letter-spacing: 1px; }
+  .modal ol { margin: 0; padding-left: 20px; }
+  .modal li { margin-bottom: 12px; line-height: 1.5; color: var(--text); }
+  .modal li strong { color: var(--accent); }
+  .modal-close {
+    float: right; background: none; border: none; color: var(--text3);
+    font-size: 20px; cursor: pointer; margin-top: -10px;
+  }
+  .modal-close:hover { color: var(--text); }
 </style>
 </head>
 <body>
+
+<div class="modal-overlay" id="tutorialModal" onclick="if(event.target===this)hideTutorial()">
+  <div class="modal">
+    <button class="modal-close" onclick="hideTutorial()">&times;</button>
+    <h2>How It Works</h2>
+    <ol>
+      <li><strong>Load Categories File</strong><br>Click "Load Categories" button and select your categories .ltx file (from the Grounded Trading System addon). This file contains a list of all game items organized by categories. The left panel will populate with items grouped by category.</li>
+      <li><strong>Load Item Names (Optional but recommended)</strong><br>Click "Load Names (.xml)" button and select one or more string table XML files (available in the tool's repository). In-game translated names will now appear alongside item IDs.</li>
+      <li><strong>Create a New Trader</strong><br>Enter a trader name in the input field (e.g., "sidorovich") and click "+ Add" button.</li>
+      <li><strong>Add Tiers to Trader</strong><br>In Stalker Anomaly, each trader has a list of supplies tiers that usually get unlocked by improving the goodwill with that trader's faction. Check the unpacked game files to see how many supplies tiers a specific trader has. Enter a tier name (e.g., "supplies_1") and optionally add a parent tier name for inheritance (e.g., "supplies_1" as parent for "supplies_2"). Click "+ Tier" and repeat for each tier the trader has.</li>
+      <li><strong>Add Groups to Tier</strong><br>Enter a group name and click "+ Group". You can add multiple groups per tier.</li>
+      <li><strong>Add Items</strong><br>Click on any group header to select it. Browse or search items in the left panel and click any item to add it to the selected group. In the middle panel, you can adjust amount and chance values inline.</li>
+      <li><strong>Export</strong><br>Select trader from dropdown in right panel and click "Copy" or "Download .ltx".</li>
+      <li><strong>Import Existing Traders (Optional)</strong><br>To edit an existing trader, enter the trader name first, then click "Import" and select the trader's .ltx file from the configs/items/trade/ folder in your unpacked game files. The tool will load all tiers, groups, and items from that file.</li>
+    </ol>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 
 <header>
   <div class="logo">S.T.A.L.K.E.R. <span>// </span>ANOMALY</div>
-  <div class="header-title">Trader Builder</div>
+  <div class="header-title">Trader Builder <button class="btn small" onclick="showTutorial()">How it works?</button></div>
   <div class="header-actions">
     <label class="file-label">⬆ Load Categories<input type="file" id="catFile" accept=".ltx,.txt"></label>
     <label class="file-label">⬆ Load Names (.xml)<input type="file" id="namesFiles" accept=".xml" multiple></label>
@@ -1454,6 +1492,8 @@ function exportAll() { document.getElementById('exportTraderSel').value='__all__
 
 // ── UTILS ──
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function showTutorial() { document.getElementById('tutorialModal').classList.add('show'); }
+function hideTutorial() { document.getElementById('tutorialModal').classList.remove('show'); }
 let notifTimer;
 function notify(msg) {
   const el = document.getElementById('notif');

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>S.T.A.L.K.E.R. Trader Builder</title>
+<title>Grounded Trading System Supplies Builder</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&display=swap');
 
@@ -384,7 +384,7 @@
 
 <header>
   <div class="logo">S.T.A.L.K.E.R. <span>// </span>ANOMALY</div>
-  <div class="header-title">Trader Builder <button class="btn small" onclick="showTutorial()">How it works?</button></div>
+  <div class="header-title">Trader Supplies Builder <button class="btn small" onclick="showTutorial()">How it works?</button></div>
   <div class="header-actions">
     <label class="file-label">⬆ Load Categories<input type="file" id="catFile" accept=".ltx,.txt"></label>
     <label class="file-label">⬆ Load Names (.xml)<input type="file" id="namesFiles" accept=".xml" multiple></label>
@@ -850,7 +850,7 @@ function getItemDescription(item) {
     || itemDescriptions[item.replace(/_/g, '-')] 
     || itemDescriptions[item.replace(/\./g, '_')] 
     || itemDescriptions[item.replace(/_/g, '-').replace(/\./g, '_')] 
-    || (item.startsWith('wpn_addon_') ? itemDescriptions['st_' + item.slice(8) + '_descr'] : null)
+    || (item.startsWith('wpn_addon_') ? itemDescriptions[item.slice(3) + '_descr'] : null)
     || 'No description found';
 }
 function getItemName(item) {
@@ -858,7 +858,7 @@ function getItemName(item) {
     || itemNames[item.replace(/_/g, '-')] 
     || itemNames[item.replace(/\./g, '_')] 
     || itemNames[item.replace(/_/g, '-').replace(/\./g, '_')] 
-    || (item.startsWith('wpn_addon_') ? itemNames['st_' + item.slice(8)] : null)
+    || (item.startsWith('wpn_addon_') ? itemNames[item.slice(3)] : null)
     || '';
 }
 

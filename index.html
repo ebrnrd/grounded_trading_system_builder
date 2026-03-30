@@ -98,6 +98,55 @@
   .btn.danger { border-color: var(--danger); color: var(--danger); }
   .btn.danger:hover { background: #3a1010; }
   .btn.small { font-size: 11px; padding: 3px 8px; }
+  .btn.xs { font-size: 10px; padding: 2px 6px; }
+
+  /* ── TABS ── */
+  .tab-bar { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--bg3); }
+  .tab-btn {
+    flex: 1; padding: 7px 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 1.5px;
+    text-transform: uppercase; text-align: center; cursor: pointer; color: var(--text3);
+    border: none; border-bottom: 2px solid transparent; transition: all .15s; user-select: none; background: transparent;
+  }
+  .tab-btn:hover { color: var(--text2); background: var(--bg4); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--bg2); }
+  .tab-pane { display: none; flex-direction: column; flex: 1; overflow: hidden; min-height: 0; }
+  .tab-pane.active { display: flex; }
+
+  /* ── FILES TAB ── */
+  .file-tab-body { flex: 1; overflow-y: auto; padding: 8px; min-height: 0; }
+  .file-tab-body::-webkit-scrollbar { width: 4px; }
+  .file-tab-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .file-zone {
+    border: 1px dashed var(--border2); border-radius: 4px; margin-bottom: 6px;
+    padding: 11px; text-align: center; cursor: pointer; transition: all .15s;
+    font-size: 12px; color: var(--text3);
+  }
+  .file-zone:hover { border-color: var(--accent); color: var(--text2); background: var(--bg3); }
+  .file-zone input { display: none; }
+
+  .file-group { margin-bottom: 10px; }
+  .file-group-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+    padding: 4px 8px; border-radius: 3px; background: var(--bg3); border: 1px solid var(--border);
+  }
+  .fgh-label { font-family: var(--mono); font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; flex: 1; }
+  .fgh-label.ltx { color: var(--accent); }
+  .fgh-label.xml { color: #4a8aaa; }
+  .fgh-label.cat { color: var(--warn); }
+
+  .loaded-file {
+    display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+    border-radius: 3px; font-family: var(--mono); font-size: 10px; color: var(--text2);
+    border: 1px solid var(--border); margin-bottom: 2px; background: var(--bg);
+  }
+  .lf-tag { font-size: 9px; padding: 1px 5px; border-radius: 2px; font-weight: 700; letter-spacing: .5px; flex-shrink: 0; }
+  .lf-tag.ltx { background: #2a3a1a; color: var(--accent); }
+  .lf-tag.xml { background: #1a2a3a; color: #4a8aaa; }
+  .lf-tag.cat { background: #3a2a1a; color: var(--warn); }
+  .lf-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lf-rm { color: var(--text3); cursor: pointer; flex-shrink: 0; }
+  .lf-rm:hover { color: var(--danger); }
 
   input[type=text], input[type=number], select {
     font-family: var(--mono); font-size: 12px; background: var(--bg);
@@ -347,18 +396,22 @@
   }
   .modal-close:hover { color: var(--text); }
 
-  [data-tooltip] { position: relative; }
-  [data-tooltip]:hover::after {
-    content: attr(data-tooltip);
-    position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-    background: var(--bg4); border: 1px solid var(--border); border-radius: 4px;
-    padding: 8px 12px; max-width: 400px; white-space: pre-wrap; word-break: break-word;
-    font-family: var(--sans); font-size: 12px; color: var(--text);
-    z-index: 100; pointer-events: none; white-space: normal;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4); margin-top: 6px;
+  #tooltip {
+    position: fixed; z-index: 9999; pointer-events: none;
+    background: var(--bg2); border: 1px solid var(--border2); border-radius: 4px;
+    padding: 9px 13px; max-width: 360px; font-size: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.55); display: none; min-width: 180px;
   }
-  .item-row[data-tooltip]:hover::after { left: 0; transform: none; }
-  .tier-item-name[data-tooltip]:hover::after { left: 0; transform: none; }
+  #tooltip .tt-id   { font-family: var(--mono); color: var(--accent); font-size: 10px; margin-bottom: 4px; letter-spacing: .5px; }
+  #tooltip .tt-top  { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+  #tooltip .tt-name { font-weight: 700; font-size: 14px; color: var(--text); flex: 1; }
+  #tooltip .tt-cost { font-size: 11px; color: var(--accent); font-family: var(--mono); flex-shrink: 0; }
+  #tooltip .tt-meta { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+  #tooltip .tt-meta-row { display: flex; gap: 6px; align-items: baseline; font-family: var(--mono); font-size: 10px; }
+  #tooltip .tt-meta-label { color: var(--text3); letter-spacing: .5px; flex-shrink: 0; }
+  #tooltip .tt-meta-val   { color: var(--text2); }
+  #tooltip .tt-sep  { border: none; border-top: 1px solid var(--border); margin: 5px 0; }
+  #tooltip .tt-desc { color: var(--text2); font-size: 11px; line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -369,7 +422,7 @@
     <h2>How It Works</h2>
     <ol>
       <li><strong>Load Categories File</strong><br>Click "Load Categories" button and select your categories .ltx file (from the Grounded Trading System addon). This file contains a list of all game items organized by categories. The left panel will populate with items grouped by category.</li>
-      <li><strong>Load Item Names (Optional but recommended)</strong><br>Click "Load Names (.xml)" button and select one or more string table XML files (available in the tool's repository). In-game translated names will now appear alongside item IDs.</li>
+      <li><strong>Load Item Names (Optional but recommended)</strong><br>Click "Load Config (.ltx)" to load one or more item definition .ltx files (e.g. <code>items_weapons.ltx</code>, <code>items_food.ltx</code>). These let the tool resolve exact in-game names and descriptions via the parent inheritance chain. Then click "Load Names (.xml)" to load the matching string table XML files. Both are optional but together give the most accurate item names.</li>
       <li><strong>Create a New Trader</strong><br>Enter a trader name in the input field (e.g., "sidorovich") and click "+ Add" button.</li>
       <li><strong>Add Tiers to Trader</strong><br>In Stalker Anomaly, each trader has a list of supplies tiers that usually get unlocked by improving the goodwill with that trader's faction. Check the unpacked game files to see how many supplies tiers a specific trader has. Enter a tier name (e.g., "supplies_1") and optionally add a parent tier name for inheritance (e.g., "supplies_1" as parent for "supplies_2"). Click "+ Tier" and repeat for each tier the trader has.</li>
       <li><strong>Add Groups to Tier</strong><br>Enter a group name and click "+ Group". You can add multiple groups per tier.</li>
@@ -384,30 +437,56 @@
 
 <header>
   <div class="logo">S.T.A.L.K.E.R. <span>// </span>ANOMALY</div>
-  <div class="header-title">Trader Supplies Builder <button class="btn small" onclick="showTutorial()">How it works?</button></div>
+  <div class="header-title">Trader Supplies Builder</div>
   <div class="header-actions">
-    <label class="file-label">⬆ Load Categories<input type="file" id="catFile" accept=".ltx,.txt"></label>
-    <label class="file-label">⬆ Load Names (.xml)<input type="file" id="namesFiles" accept=".xml" multiple></label>
     <button class="btn primary" onclick="exportAll()">⬇ Export .ltx</button>
-    <button class="btn" onclick="clearCache()" title="Clear cached categories and names">✕ Clear Cache</button>
+    <button class="btn small" onclick="showTutorial()">How it works?</button>
   </div>
 </header>
 
 <div class="app" id="appGrid">
 
-  <!-- LEFT: ITEM BROWSER -->
-  <div class="panel">
+  <!-- LEFT: ITEM BROWSER + FILES -->
+  <div class="panel" id="leftPanel">
     <div class="panel-header">
-      <span class="panel-title">Item Browser</span>
+      <span class="panel-title">Browser</span>
       <span id="catCount" class="badge">0 items</span>
     </div>
-    <div class="search-wrap">
-      <input type="text" id="searchInput" placeholder="Search items..." oninput="filterItems()">
-      <button class="btn" style="margin-top:4px" onclick="collapseAllCats()" title="Collapse all categories">Collapse all</button>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tabBtnItems" onclick="switchTab('items')">Items</button>
+      <button class="tab-btn"        id="tabBtnFiles" onclick="switchTab('files')">Files</button>
     </div>
-    <div class="sel-indicator" id="selIndicator">← Click item to add to selected group</div>
-    <div class="panel-body" id="catList">
-      <div class="empty">Load a categories .ltx file<br>to browse items</div>
+
+    <!-- ITEMS TAB -->
+    <div class="tab-pane active" id="tabItems">
+      <div class="search-wrap">
+        <input type="text" id="searchInput" placeholder="Search items..." oninput="filterItems()">
+        <button class="btn small" style="margin-top:4px" onclick="collapseAllCats()" title="Collapse all categories">Collapse all</button>
+      </div>
+      <div class="sel-indicator" id="selIndicator">← Click item to add to selected group</div>
+      <div class="panel-body" id="catList">
+        <div class="empty">Load a categories .ltx file<br>to browse items</div>
+      </div>
+    </div>
+
+    <!-- FILES TAB -->
+    <div class="tab-pane" id="tabFiles">
+      <div class="file-tab-body">
+        <div class="file-zone" onclick="document.getElementById('catFile').click()">
+          <input type="file" id="catFile" accept=".ltx,.txt" onchange="onCatFileChange(this)">
+          📂 Load <strong>trade_categories.ltx</strong>
+        </div>
+        <div class="file-zone" onclick="document.getElementById('ltxFiles').click()">
+          <input type="file" id="ltxFiles" accept=".ltx,.txt" multiple onchange="onLtxFilesChange(this)">
+          📂 Add <strong>.ltx config files</strong> (multiple)
+        </div>
+        <div class="file-zone" onclick="document.getElementById('namesFiles').click()">
+          <input type="file" id="namesFiles" accept=".xml" multiple onchange="onNamesFilesChange(this)">
+          📂 Add <strong>.xml string files</strong> (multiple)
+        </div>
+        <div id="loadedFilesList"></div>
+      </div>
     </div>
   </div><div class="resize-handle" id="leftResizeHandle"></div>
 
@@ -447,27 +526,52 @@
 
 </div>
 
+<div id="tooltip">
+  <div class="tt-id"  id="ttId"></div>
+  <div class="tt-top">
+    <div class="tt-name" id="ttName"></div>
+    <div class="tt-cost" id="ttCost"></div>
+  </div>
+  <div class="tt-meta" id="ttMeta"></div>
+  <hr  class="tt-sep"  id="ttSep">
+  <div class="tt-desc" id="ttDesc"></div>
+</div>
 <div id="notif"></div>
 
 <script>
 // ── STATE ──
 // traders: [{id, name, tiers: [{id, name, parent, groups: [{id, name, items: [{type,name?,amt?,chance?,text?}]}]}]}]
-let categories = {};
-let itemNames  = {};
-let itemDescriptions = {};
-let traders    = [];
-let selectedGroup = null; // { traderId, tierId, groupId }
+let categories       = {};
+let itemDB           = {};  // id → {inv_name_key, description_key, parent, cost}  (from .ltx configs)
+let stringDB         = {};  // string_id → text  (from .xml files, used with itemDB)
+let itemNames        = {};  // legacy heuristic names (from .xml, used as fallback)
+let itemDescriptions = {};  // legacy heuristic descriptions (from .xml, used as fallback)
+let loadedFiles      = [];  // [{name, type:'cat'|'ltx'|'xml'}]
+let traders          = [];
+let selectedGroup    = null; // { traderId, tierId, groupId }
 let uid = 1;
 const genId = () => uid++;
 
 // ── CACHE ──
-const CACHE_KEY_CATS  = 'trader_builder_categories';
-const CACHE_KEY_NAMES = 'trader_builder_names';
+const CACHE_KEY_CATS   = 'trader_builder_categories';
+const CACHE_KEY_NAMES  = 'trader_builder_names';
+const CACHE_KEY_ITEMDB = 'trader_builder_itemdb';
+const CACHE_KEY_FILES  = 'trader_builder_files';
 function saveCategoriesToCache(text) { try { localStorage.setItem(CACHE_KEY_CATS, text); } catch(e) {} }
 function saveNamesToCache() { try { localStorage.setItem(CACHE_KEY_NAMES, JSON.stringify({ names: itemNames, descriptions: itemDescriptions })); } catch(e) {} }
+function saveItemDbToCache() { try { localStorage.setItem(CACHE_KEY_ITEMDB, JSON.stringify({ itemDB, stringDB })); } catch(e) {} }
+function saveFilesToCache() { try { localStorage.setItem(CACHE_KEY_FILES, JSON.stringify(loadedFiles)); } catch(e) {} }
 function loadCategoriesFromCache() { const c = localStorage.getItem(CACHE_KEY_CATS); if (c) { categories = parseLtx(c); return true; } return false; }
 function loadNamesFromCache() { const c = localStorage.getItem(CACHE_KEY_NAMES); if (c) { try { const data = JSON.parse(c); itemNames = data.names || {}; itemDescriptions = data.descriptions || {}; return true; } catch(e) {} } return false; }
-function clearCache() { localStorage.removeItem(CACHE_KEY_CATS); localStorage.removeItem(CACHE_KEY_NAMES); notify('Cache cleared'); }
+function loadItemDbFromCache() { const c = localStorage.getItem(CACHE_KEY_ITEMDB); if (c) { try { const data = JSON.parse(c); itemDB = data.itemDB || {}; stringDB = data.stringDB || {}; return true; } catch(e) {} } return false; }
+function loadFilesFromCache() { const c = localStorage.getItem(CACHE_KEY_FILES); if (c) { try { loadedFiles = JSON.parse(c); return true; } catch(e) {} } return false; }
+function clearCache() {
+  localStorage.removeItem(CACHE_KEY_CATS); localStorage.removeItem(CACHE_KEY_NAMES);
+  localStorage.removeItem(CACHE_KEY_ITEMDB); localStorage.removeItem(CACHE_KEY_FILES);
+  categories = {}; itemDB = {}; stringDB = {}; itemNames = {}; itemDescriptions = {}; loadedFiles = [];
+  renderLoadedFiles(); renderCatList(''); updateCatCount();
+  notify('Cache cleared');
+}
 
 function parseLtx(text) {
   const result = {};
@@ -489,12 +593,15 @@ function parseLtx(text) {
 }
 
 function initDefault() {
-  const hadCats  = loadCategoriesFromCache();
-  const hadNames = loadNamesFromCache();
+  const hadCats   = loadCategoriesFromCache();
+  const hadNames  = loadNamesFromCache();
+  const hadItemDb = loadItemDbFromCache();
+  loadFilesFromCache();
   if (!hadCats) categories = {};
   renderCatList('');
   updateCatCount();
-  if (hadCats && hadNames) notify('Loaded from cache: ' + Object.keys(categories).length + ' sections, ' + Object.keys(itemNames).length + ' names');
+  renderLoadedFiles();
+  if (hadCats && hadNames) notify('Loaded from cache: ' + Object.keys(categories).length + ' sections, ' + Object.keys(itemNames).length + ' names' + (hadItemDb ? ', ' + Object.keys(itemDB).length + ' ltx items' : ''));
   else if (hadCats)        notify('Loaded categories from cache: ' + Object.keys(categories).length + ' sections');
   else if (hadNames)       notify('Loaded names from cache: ' + Object.keys(itemNames).length + ' names');
 }
@@ -518,21 +625,70 @@ function getOpenCatIds() {
   return o;
 }
 
-function getItemDescription(item) {
-  return itemDescriptions[item] 
-    || itemDescriptions[item.replace(/_/g, '-')] 
-    || itemDescriptions[item.replace(/\./g, '_')] 
-    || itemDescriptions[item.replace(/_/g, '-').replace(/\./g, '_')] 
-    || (item.startsWith('wpn_addon_') ? itemDescriptions[item.slice(3) + '_descr'] : null)
-    || 'No description found';
-}
-function getItemName(item) {
-  return itemNames[item] 
-    || itemNames[item.replace(/_/g, '-')] 
-    || itemNames[item.replace(/\./g, '_')] 
-    || itemNames[item.replace(/_/g, '-').replace(/\./g, '_')] 
-    || (item.startsWith('wpn_addon_') ? itemNames[item.slice(3)] : null)
+function getItemDescription(id) {
+  // Primary: use itemDB parent-chain lookup via stringDB
+  const e = itemDB[id];
+  if (e) {
+    if (e.description_key && stringDB[e.description_key]) return stringDB[e.description_key];
+    if (e.description_key) return e.description_key;
+    if (e.parent) return getItemDescription(e.parent);
+  }
+  // Fallback: legacy heuristic matching from XML files
+  return itemDescriptions[id]
+    || itemDescriptions[id.replace(/_/g, '-')]
+    || itemDescriptions[id.replace(/\./g, '_')]
+    || itemDescriptions[id.replace(/_/g, '-').replace(/\./g, '_')]
+    || (id.startsWith('wpn_addon_') ? itemDescriptions[id.slice(3) + '_descr'] : null)
     || '';
+}
+function getItemName(id) {
+  // Primary: use itemDB parent-chain lookup via stringDB
+  const e = itemDB[id];
+  if (e) {
+    if (e.inv_name_key && stringDB[e.inv_name_key]) return stringDB[e.inv_name_key];
+    if (e.inv_name_key) return e.inv_name_key;
+    if (e.parent) return getItemName(e.parent);
+  }
+  // Fallback: legacy heuristic matching from XML files
+  return itemNames[id]
+    || itemNames[id.replace(/_/g, '-')]
+    || itemNames[id.replace(/\./g, '_')]
+    || itemNames[id.replace(/_/g, '-').replace(/\./g, '_')]
+    || (id.startsWith('wpn_addon_') ? itemNames[id.slice(3)] : null)
+    || '';
+}
+
+function getItemCost(id) {
+  const e = itemDB[id];
+  if (e) {
+    if (e.cost) return e.cost;
+    if (e.parent) return getItemCost(e.parent);
+  }
+  return null;
+}
+function getItemTier(id) {
+  const e = itemDB[id];
+  if (e) {
+    if (e.tier) return e.tier;
+    if (e.parent) return getItemTier(e.parent);
+  }
+  return null;
+}
+function getItemAmmo(id) {
+  const e = itemDB[id];
+  if (e) {
+    if (e.ammo_class) return e.ammo_class;
+    if (e.parent) return getItemAmmo(e.parent);
+  }
+  return null;
+}
+function getItemCommunity(id) {
+  const e = itemDB[id];
+  if (e) {
+    if (e.community) return e.community;
+    if (e.parent) return getItemCommunity(e.parent);
+  }
+  return null;
 }
 
 function renderCatList(filter) {
@@ -587,7 +743,7 @@ function renderCatList(filter) {
       const dispName = getItemName(item);
       const disp = dispName ? `<span class="item-disp-name">${escHtml(dispName)}</span>` : '';
       const descr = getItemDescription(item);
-      html += `<div class="item-row" onclick="addItemToSelected('${item}')" data-tooltip="${escHtml(descr)}">${icon}<span>${item}</span>${disp}<span class="add-icon">+</span></div>`;
+      html += `<div class="item-row" onclick="addItemToSelected('${item}')" onmouseenter="showTip(event,'${item}')" onmouseleave="hideTip()">${icon}<span>${item}</span>${disp}<span class="add-icon">+</span></div>`;
     }
     html += `</div></div>`;
   }
@@ -640,39 +796,182 @@ function parseItemNamesXml(text) {
 }
 function mergeItemNames(n) { Object.assign(itemNames, n.names); Object.assign(itemDescriptions, n.descriptions); }
 
-document.getElementById('namesFiles').addEventListener('change', function(e) {
-  const files = Array.from(e.target.files);
-  if (!files.length) return;
-  let loaded = 0;
-  for (const f of files) {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      mergeItemNames(parseItemNamesXml(ev.target.result));
-      if (++loaded === files.length) {
-        saveNamesToCache();
-        renderCatList(document.getElementById('searchInput').value);
-        renderTraders();
-        notify(`Loaded ${files.length} name file${files.length>1?'s':''} — ${Object.keys(itemNames).length} names total (cached)`);
+// ── LTX CONFIG PARSER (item definitions with parent chain) ──
+function parseLtxConfig(text) {
+  let curId = null;
+  for (const rawLine of text.split('\n')) {
+    const l = rawLine.trim();
+    // Section header: [item_id]:parent1,parent2,...
+    const hm = l.match(/^\[([^\]]+)\](?::(.+))?/);
+    if (hm) {
+      curId = hm[1].trim();
+      if (!itemDB[curId]) itemDB[curId] = { inv_name_key: '', description_key: '', parent: null, cost: null, tier: null, ammo_class: null, community: null };
+      if (hm[2]) {
+        const parent = hm[2].split(',')[0].trim();
+        if (parent) itemDB[curId].parent = parent;
       }
-    };
-    reader.readAsBinaryString(f);
+      continue;
+    }
+    if (!curId) continue;
+    const nm = l.match(/^inv_name\s*=\s*([A-Za-z0-9_.\-]+)/);
+    if (nm) { itemDB[curId].inv_name_key = nm[1]; continue; }
+    const dm = l.match(/^description\s*=\s*([A-Za-z0-9_.\-]+)/);
+    if (dm) { itemDB[curId].description_key = dm[1]; continue; }
+    const cm = l.match(/^cost\s*=\s*([0-9]+)/);
+    if (cm) { itemDB[curId].cost = cm[1]; continue; }
+    const tm = l.match(/^tier\s*=\s*(.+)/);
+    if (tm) { itemDB[curId].tier = tm[1].trim(); continue; }
+    const am = l.match(/^ammo_class\s*=\s*(.+)/);
+    if (am) { itemDB[curId].ammo_class = am[1].trim(); continue; }
+    const om = l.match(/^community\s*=\s*(.+)/);
+    if (om) { itemDB[curId].community = om[1].trim(); }
   }
-  this.value = '';
-});
+}
 
-document.getElementById('catFile').addEventListener('change', function(e) {
-  const f = e.target.files[0]; if (!f) return;
+// ── XML STRINGS PARSER (for use with itemDB) ──
+function parseXmlStrings(text) {
+  const re = /<string\s+id="([^"]+)"[^>]*>\s*<text>([\s\S]*?)<\/text>/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    stringDB[m[1]] = m[2].replace(/\\n/g, '\n').replace(/%c\[[^\]]+\]/g, '').replace(/\x95/g, '•').replace(/\n\s*\n/g, '\n').trim();
+  }
+}
+
+// ── FILE HANDLERS ──
+function onCatFileChange(input) {
+  const f = input.files[0]; if (!f) return;
   const reader = new FileReader();
   reader.onload = ev => {
     categories = parseLtx(ev.target.result);
     saveCategoriesToCache(ev.target.result);
+    loadedFiles = loadedFiles.filter(lf => lf.type !== 'cat');
+    loadedFiles.unshift({ name: f.name, type: 'cat' });
+    saveFilesToCache();
+    renderLoadedFiles();
     renderCatList(document.getElementById('searchInput').value);
     updateCatCount();
     notify('Categories loaded: ' + Object.keys(categories).length + ' sections (cached)');
   };
   reader.readAsText(f);
-  this.value = '';
-});
+  input.value = '';
+}
+
+function onLtxFilesChange(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  let done = 0;
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      parseLtxConfig(ev.target.result);
+      loadedFiles = loadedFiles.filter(lf => !(lf.name === f.name && lf.type === 'ltx'));
+      loadedFiles.push({ name: f.name, type: 'ltx' });
+      if (++done === files.length) {
+        saveItemDbToCache();
+        saveFilesToCache();
+        renderLoadedFiles();
+        renderCatList(document.getElementById('searchInput').value);
+        renderTraders();
+        notify(`Loaded ${files.length} .ltx config file${files.length>1?'s':''} — ${Object.keys(itemDB).length} items indexed (cached)`);
+      }
+    };
+    reader.readAsText(f);
+  });
+  input.value = '';
+}
+
+function onNamesFilesChange(input) {
+  const files = Array.from(input.files);
+  if (!files.length) return;
+  let done = 0;
+  files.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target.result;
+      mergeItemNames(parseItemNamesXml(text));
+      parseXmlStrings(text);
+      loadedFiles = loadedFiles.filter(lf => !(lf.name === f.name && lf.type === 'xml'));
+      loadedFiles.push({ name: f.name, type: 'xml' });
+      if (++done === files.length) {
+        saveNamesToCache();
+        saveItemDbToCache();
+        saveFilesToCache();
+        renderLoadedFiles();
+        renderCatList(document.getElementById('searchInput').value);
+        renderTraders();
+        notify(`Loaded ${files.length} name file${files.length>1?'s':''} — ${Object.keys(itemNames).length} names, ${Object.keys(stringDB).length} strings (cached)`);
+      }
+    };
+    reader.readAsText(f, 'windows-1251');
+  });
+  input.value = '';
+}
+
+// ── FILE LIST RENDER ──
+function renderLoadedFiles() {
+  const el = document.getElementById('loadedFilesList');
+  const cat = loadedFiles.filter(f => f.type === 'cat');
+  const ltx = loadedFiles.filter(f => f.type === 'ltx');
+  const xml = loadedFiles.filter(f => f.type === 'xml');
+  let html = '';
+  if (cat.length) {
+    html += `<div class="file-group"><div class="file-group-header"><span class="fgh-label cat">Categories File</span></div>`
+      + cat.map(f => fileRow(f)).join('') + `</div>`;
+  }
+  if (ltx.length) {
+    html += `<div class="file-group"><div class="file-group-header">
+      <span class="fgh-label ltx">LTX Config (${ltx.length})</span>
+      <button class="btn xs danger" onclick="clearLtxFiles()">Clear All</button>
+    </div>` + ltx.map(f => fileRow(f)).join('') + `</div>`;
+  }
+  if (xml.length) {
+    html += `<div class="file-group"><div class="file-group-header">
+      <span class="fgh-label xml">XML Strings (${xml.length})</span>
+      <button class="btn xs danger" onclick="clearXmlFiles()">Clear All</button>
+    </div>` + xml.map(f => fileRow(f)).join('') + `</div>`;
+  }
+  if (!html) html = '<div style="padding:12px 8px;font-family:var(--mono);font-size:10px;color:var(--text3)">No files loaded yet</div>';
+  el.innerHTML = html;
+}
+
+function fileRow(f) {
+  const idx = loadedFiles.indexOf(f);
+  return `<div class="loaded-file">
+    <span class="lf-tag ${f.type}">${f.type.toUpperCase()}</span>
+    <span class="lf-name" title="${escHtml(f.name)}">${escHtml(f.name)}</span>
+    <span class="lf-rm" onclick="unloadFile(${idx})">✕</span>
+  </div>`;
+}
+
+function unloadFile(idx) {
+  loadedFiles.splice(idx, 1);
+  saveFilesToCache();
+  renderLoadedFiles();
+}
+
+function clearLtxFiles() {
+  loadedFiles = loadedFiles.filter(f => f.type !== 'ltx');
+  saveFilesToCache();
+  renderLoadedFiles();
+  notify('Cleared all .ltx config files');
+}
+
+function clearXmlFiles() {
+  loadedFiles = loadedFiles.filter(f => f.type !== 'xml');
+  saveFilesToCache();
+  renderLoadedFiles();
+  notify('Cleared all .xml string files');
+}
+
+// ── TAB SWITCH ──
+function switchTab(tab) {
+  ['items', 'files'].forEach(t => {
+    const btn = document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1));
+    const pane = document.getElementById('tab'   + t.charAt(0).toUpperCase() + t.slice(1));
+    btn.classList.toggle('active', t === tab);
+    pane.classList.toggle('active', t === tab);
+  });
+}
 
 // ── TRADER MANAGEMENT ──
 function addTrader() {
@@ -1146,10 +1445,9 @@ function renderTraders() {
             const dispName = entryName
               ? `<span class="tier-item-disp-name" title="${escHtml(entryName)}">${escHtml(entryName)}</span>`
               : `<span class="tier-item-spacer"></span>`;
-            const entryDescr = getItemDescription(entry.name);
             html += `<div class="${rowClass}" data-idx="${idx}" data-name="${escHtml(entry.name)}">
               <span class="drag-handle">⋮⋮</span>
-              <span class="tier-item-name" data-tooltip="${escHtml(entryDescr)}">${escHtml(entry.name)}</span>
+              <span class="tier-item-name" onmouseenter="showTip(event,'${entry.name}')" onmouseleave="hideTip()">${escHtml(entry.name)}</span>
               ${dispName}${owBadge}
               <input type="number" min="1" max="99" value="${entry.amt}"
                 onchange="updateItemField(${trader.id},${tier.id},${group.id},'${entry.name}','amt',this.value)"
@@ -1264,6 +1562,52 @@ function downloadExport() {
   notify('Downloaded!');
 }
 function exportAll() { document.getElementById('exportTraderSel').value='__all__'; renderExport(); downloadExport(); }
+
+// ── TOOLTIP ──
+let tipTimer = null;
+function showTip(e, id) {
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => {
+    const name  = getItemName(id);
+    const cost  = getItemCost(id);
+    const tier  = getItemTier(id);
+    const ammo  = getItemAmmo(id);
+    const comm  = getItemCommunity(id);
+    const desc  = getItemDescription(id);
+
+    document.getElementById('ttId').textContent   = id;
+    document.getElementById('ttName').textContent = name || '(no name found)';
+    document.getElementById('ttCost').textContent = cost ? cost + ' RU' : '';
+
+    // Build meta rows
+    const metaEl = document.getElementById('ttMeta');
+    let metaHtml = '';
+    if (tier) metaHtml += `<div class="tt-meta-row"><span class="tt-meta-label">TIER</span><span class="tt-meta-val">${escHtml(tier)}</span></div>`;
+    if (ammo) metaHtml += `<div class="tt-meta-row"><span class="tt-meta-label">AMMO</span><span class="tt-meta-val">${escHtml(ammo)}</span></div>`;
+    if (comm) metaHtml += `<div class="tt-meta-row"><span class="tt-meta-label">COMMUNITY</span><span class="tt-meta-val">${escHtml(comm)}</span></div>`;
+    metaEl.innerHTML = metaHtml;
+    metaEl.style.display = metaHtml ? '' : 'none';
+
+    // Separator: only show when there is both meta and description
+    const sep = document.getElementById('ttSep');
+    sep.style.display = (metaHtml && desc) ? '' : 'none';
+
+    document.getElementById('ttDesc').textContent = desc || '';
+    document.getElementById('ttDesc').style.display = desc ? '' : 'none';
+
+    document.getElementById('tooltip').style.display = 'block';
+    posTip(e);
+  }, 160);
+}
+function hideTip() { clearTimeout(tipTimer); document.getElementById('tooltip').style.display = 'none'; }
+function posTip(e) {
+  const el = document.getElementById('tooltip'), W = window.innerWidth, H = window.innerHeight;
+  el.style.left = (e.clientX + 16) + 'px'; el.style.top = (e.clientY + 16) + 'px';
+  const r = el.getBoundingClientRect();
+  if (r.right  > W - 8) el.style.left = (e.clientX - r.width  - 16) + 'px';
+  if (r.bottom > H - 8) el.style.top  = (e.clientY - r.height - 16) + 'px';
+}
+document.addEventListener('mousemove', e => { if (document.getElementById('tooltip').style.display === 'block') posTip(e); });
 
 // ── UTILS ──
 function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }

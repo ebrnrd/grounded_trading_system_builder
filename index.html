@@ -662,20 +662,64 @@ const CACHE_KEY_ITEMDB = 'trader_builder_itemdb';
 const CACHE_KEY_FILES  = 'trader_builder_files';
 const CACHE_KEY_RAW_FILES = 'trader_builder_raw_files';
 
+let rawDb = null;
+const RAW_DB_NAME = 'trader_builder_raw';
+const RAW_STORE_NAME = 'files';
+
+function initRawDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(RAW_DB_NAME, 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      rawDb = request.result;
+      resolve(rawDb);
+    };
+    request.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(RAW_STORE_NAME)) {
+        db.createObjectStore(RAW_STORE_NAME, { keyPath: 'name' });
+      }
+    };
+  });
+}
+
 function saveRawFile(name, content, type) {
+  if (!rawDb) {
+    initRawDb().then(() => saveRawFile(name, content, type)).catch(console.error);
+    return;
+  }
   try {
-    const raw = JSON.parse(localStorage.getItem(CACHE_KEY_RAW_FILES) || '{}');
-    raw[name] = { content, type };
-    localStorage.setItem(CACHE_KEY_RAW_FILES, JSON.stringify(raw));
-  } catch(e) {}
+    const tx = rawDb.transaction(RAW_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(RAW_STORE_NAME);
+    store.put({ name, content, type, updated: Date.now() });
+  } catch (e) {
+    console.error('Failed to save raw file:', e);
+  }
 }
 
 function getRawFile(name) {
+  if (!rawDb) return Promise.resolve(null);
   try {
-    const raw = JSON.parse(localStorage.getItem(CACHE_KEY_RAW_FILES) || '{}');
-    return raw[name] || null;
-  } catch(e) { return null; }
+    const tx = rawDb.transaction(RAW_STORE_NAME, 'readonly');
+    const store = tx.objectStore(RAW_STORE_NAME);
+    const request = store.get(name);
+    return new Promise((resolve) => {
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => resolve(null);
+    });
+  } catch(e) { return Promise.resolve(null); }
 }
+
+function clearRawDb() {
+  if (!rawDb) return;
+  try {
+    const tx = rawDb.transaction(RAW_STORE_NAME, 'readwrite');
+    const store = tx.objectStore(RAW_STORE_NAME);
+    store.clear();
+  } catch(e) {}
+}
+
+initRawDb().catch(console.error);
 
 function saveCategoriesToCache(text) { try { localStorage.setItem(CACHE_KEY_CATS, text); } catch(e) {} }
 function saveNamesToCache() { try { localStorage.setItem(CACHE_KEY_NAMES, JSON.stringify({ names: itemNames, descriptions: itemDescriptions })); } catch(e) {} }
@@ -688,7 +732,7 @@ function loadFilesFromCache() { const c = localStorage.getItem(CACHE_KEY_FILES);
 function clearCache() {
   localStorage.removeItem(CACHE_KEY_CATS); localStorage.removeItem(CACHE_KEY_NAMES);
   localStorage.removeItem(CACHE_KEY_ITEMDB); localStorage.removeItem(CACHE_KEY_FILES);
-  localStorage.removeItem(CACHE_KEY_RAW_FILES);
+  clearRawDb();
   categories = {}; itemDB = {}; stringDB = {}; itemNames = {}; itemDescriptions = {}; loadedFiles = [];
   renderLoadedFiles(); renderCatList(''); updateCatCount();
   notify('Cache cleared');
@@ -1039,8 +1083,10 @@ function renderLoadedFiles() {
   const xml = loadedFiles.filter(f => f.type === 'xml');
   let html = '';
   if (cat.length) {
-    html += `<div class="file-group"><div class="file-group-header"><span class="fgh-label cat">Categories File</span></div>`
-      + cat.map(f => fileRow(f)).join('') + `</div>`;
+    html += `<div class="file-group"><div class="file-group-header">
+      <span class="fgh-label cat">Categories File</span>
+      <button class="btn xs danger" onclick="clearCatFile()">Clear</button>
+    </div>` + cat.map(f => fileRow(f)).join('') + `</div>`;
   }
   if (ltx.length) {
     html += `<div class="file-group"><div class="file-group-header">
@@ -1078,6 +1124,16 @@ function clearLtxFiles() {
   saveFilesToCache();
   renderLoadedFiles();
   notify('Cleared all .ltx config files');
+}
+
+function clearCatFile() {
+  loadedFiles = loadedFiles.filter(f => f.type !== 'cat');
+  localStorage.removeItem(CACHE_KEY_CATS);
+  categories = {};
+  renderLoadedFiles();
+  renderCatList('');
+  updateCatCount();
+  notify('Categories file cleared');
 }
 
 function clearXmlFiles() {
@@ -1981,7 +2037,7 @@ async function exportProject() {
   
   const catFile = loadedFiles.find(f => f.type === 'cat');
   if (catFile) {
-    const rawCat = getRawFile(catFile.name);
+    const rawCat = await getRawFile(catFile.name);
     if (rawCat && rawCat.content) {
       zip.file('categories.ltx', rawCat.content);
     }
@@ -1989,7 +2045,7 @@ async function exportProject() {
   
   const ltxFiles = loadedFiles.filter(f => f.type === 'ltx');
   for (const f of ltxFiles) {
-    const rawLtx = getRawFile(f.name);
+    const rawLtx = await getRawFile(f.name);
     if (rawLtx && rawLtx.content) {
       zip.file(`configs/${f.name}`, rawLtx.content);
     }
@@ -1997,7 +2053,7 @@ async function exportProject() {
   
   const xmlFiles = loadedFiles.filter(f => f.type === 'xml');
   for (const f of xmlFiles) {
-    const rawXml = getRawFile(f.name);
+    const rawXml = await getRawFile(f.name);
     if (rawXml && rawXml.content) {
       zip.file(`strings/${f.name}`, rawXml.content);
     }

@@ -1296,7 +1296,8 @@ function parseTraderLtx(text, traderName) {
   for (let line of text.split(/\r?\n/)) {
     line = line.trim();
     if (!line) continue;
-    const isComment   = line.startsWith(';');
+    const isDoubleComment = line.startsWith(';;');
+    const isComment = line.startsWith(';');
     const headerMatch = !isComment && line.match(/^\[([^\]]+)\](?::(.+))?/);
 
     if (headerMatch) {
@@ -1312,7 +1313,13 @@ function parseTraderLtx(text, traderName) {
     if (isComment) {
       const commentText = line.slice(1).trim();
       const groups = currentTier.groups;
-      if (groups.length === 0) {
+      if (isDoubleComment) {
+        // Double comment ;; = actual comment text
+        if (groups.length === 0) {
+          groups.push({ id: genId(), name: '', items: [] });
+        }
+        groups[groups.length-1].items.push({ type: 'comment', text: commentText.slice(1).trim() });
+      } else if (groups.length === 0) {
         // First thing in this tier — start a named group
         groups.push({ id: genId(), name: commentText, items: [] });
       } else {
@@ -1420,7 +1427,7 @@ function renderTraders() {
           if (entry.type === 'comment') {
             html += `<div class="tier-comment" data-idx="${idx}">
               <span class="drag-handle">⋮⋮</span>
-              <span class="comment-prefix">;</span>
+              <span class="comment-prefix">;;</span>
               <input type="text" class="comment-input" value="${escHtml(entry.text)}" placeholder="comment text..."
                 onchange="updateComment(${trader.id},${tier.id},${group.id},${idx},this.value)"
                 oninput="updateComment(${trader.id},${tier.id},${group.id},${idx},this.value)">
@@ -1533,7 +1540,7 @@ function renderExport() {
           for (const entry of (group.items || [])) {
             if (!entry) continue;
             if (entry.type === 'comment') {
-              out += entry.text ? `; ${entry.text}\n` : ';\n';
+              out += entry.text ? `;; ${entry.text}\n` : ';;\n';
             } else {
               const pad    = ' '.repeat(Math.max(1, maxLen - entry.name.length + 4));
               const chance = entry.chance % 1 === 0 ? entry.chance.toFixed(0) : entry.chance;

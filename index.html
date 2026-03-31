@@ -294,7 +294,7 @@
 
   .tier-item {
     display: flex; align-items: center; gap: 6px;
-    padding: 3px 8px 3px 28px; font-family: var(--mono); font-size: 11px;
+    padding: 3px 8px; font-family: var(--mono); font-size: 11px;
     color: var(--text2); border-bottom: 1px solid #161a12; transition: background 0.1s;
   }
   .tier-item:hover { background: var(--bg2); }
@@ -386,6 +386,27 @@
   .group-empty-hint {
     padding: 6px 12px; font-family: var(--mono); font-size: 10px;
     color: var(--text3); font-style: italic; opacity: 0.6;
+  }
+
+  .item-select-cb {
+    width: 14px; height: 14px; margin-right: 6px; cursor: pointer;
+    appearance: none; background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 2px; flex-shrink: 0;
+  }
+  .item-select-cb:checked {
+    appearance: none; background: var(--accent); border-color: var(--accent);
+  }
+
+  .selection-float-bar {
+    display: none; padding: 8px 12px; background: var(--bg4);
+    border-top: 1px solid var(--border2); gap: 8px; align-items: center;
+    position: sticky; bottom: 0; z-index: 10;
+  }
+  .selection-float-bar.show { display: flex; }
+  .selection-float-bar .btn-primary { flex: 1; }
+  .selection-float-bar .sel-count {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    white-space: nowrap;
   }
 
   .modal-overlay {
@@ -507,7 +528,7 @@
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Traders & Tiers</span></div>
     <div class="panel-body">
-      <div class="traders-wrap">
+      <div class="traders-wrap" id="tradersWrap">
         <div class="trader-bar">
           <input type="text" id="newTraderName" placeholder="New trader name (e.g. sidorovich)">
           <button class="btn primary" onclick="addTrader()">+ Add</button>
@@ -515,6 +536,11 @@
           <input type="file" id="importFile" accept=".ltx,.txt" style="display:none">
         </div>
         <div id="traderList"></div>
+      </div>
+      <div class="selection-float-bar" id="selectionFloatBar">
+        <span class="sel-count" id="selCount">0 items selected</span>
+        <button class="btn" onclick="deselectAllItems()">Clear</button>
+        <button class="btn primary" onclick="createGroupFromSelection()">Move to a New Group</button>
       </div>
     </div>
   </div>
@@ -562,6 +588,8 @@ let itemDescriptions = {};  // legacy heuristic descriptions (from .xml, used as
 let loadedFiles      = [];  // [{name, type:'cat'|'ltx'|'xml'}]
 let traders          = [];
 let selectedGroup    = null; // { traderId, tierId, groupId }
+let selectedItemIds  = new Set(); // { "itemName": true }
+let lastSelectedTierId = null; // tier ID where selections belong
 let uid = 1;
 const genId = () => uid++;
 
@@ -1131,6 +1159,114 @@ function updateSelIndicator() {
   el.classList.remove('show');
 }
 
+// ── ITEM SELECTION FOR GROUPING ──
+function toggleItemSelection(traderId, tierId, groupId, itemName) {
+  const key = `${traderId}|${tierId}|${groupId}|${itemName}`;
+  
+  // If selecting in a different tier and we have existing selections, reject
+  if (lastSelectedTierId !== null && lastSelectedTierId !== tierId && selectedItemIds.size > 0) {
+    notify('Clear selections first or switch tiers');
+    // Revert checkbox state by re-rendering
+    renderTraders();
+    return;
+  }
+  
+  // First selection in this tier
+  if (lastSelectedTierId === null) {
+    lastSelectedTierId = tierId;
+  }
+  
+  if (selectedItemIds.has(key)) {
+    selectedItemIds.delete(key);
+    // If no more selections in this tier, reset tier tracking
+    const prefix = `${traderId}|${tierId}|`;
+    const remaining = Array.from(selectedItemIds).filter(k => k.startsWith(prefix));
+    if (remaining.length === 0) {
+      lastSelectedTierId = null;
+    }
+  } else {
+    selectedItemIds.add(key);
+  }
+  
+  updateSelectionFloatBar();
+}
+
+function updateSelectionFloatBar() {
+  const bar = document.getElementById('selectionFloatBar');
+  const countEl = document.getElementById('selCount');
+  
+  if (selectedItemIds.size > 0) {
+    countEl.textContent = `${selectedItemIds.size} item${selectedItemIds.size > 1 ? 's' : ''} selected`;
+    bar.classList.add('show');
+  } else {
+    bar.classList.remove('show');
+    lastSelectedTierId = null;
+  }
+}
+
+function deselectAllItems() {
+  selectedItemIds.clear();
+  lastSelectedTierId = null;
+  updateSelectionFloatBar();
+  renderTraders();
+}
+
+function createGroupFromSelection() {
+  if (selectedItemIds.size === 0 || lastSelectedTierId === null) return;
+  
+  // Find which trader and tier this belongs to
+  const firstKey = Array.from(selectedItemIds)[0];
+  const firstSep = firstKey.indexOf('|');
+  const secondSep = firstKey.indexOf('|', firstSep + 1);
+  const thirdSep = firstKey.indexOf('|', secondSep + 1);
+  const traderId = parseInt(firstKey.substring(0, firstSep));
+  const tierId = parseInt(firstKey.substring(firstSep + 1, secondSep));
+  
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  
+  // Create new group at bottom of tier
+  const newGroup = { id: genId(), name: 'New Group', items: [] };
+  tier.groups.push(newGroup);
+  
+  // Move selected items to new group
+  for (const key of selectedItemIds) {
+    const sep1 = key.indexOf('|');
+    const sep2 = key.indexOf('|', sep1 + 1);
+    const sep3 = key.indexOf('|', sep2 + 1);
+    const srcTraderId = parseInt(key.substring(0, sep1));
+    const srcTierId = parseInt(key.substring(sep1 + 1, sep2));
+    const srcGroupId = parseInt(key.substring(sep2 + 1, sep3));
+    const itemName = key.substring(sep3 + 1); // item name may contain underscores
+    
+    const srcGroup = getGroup(srcTraderId, srcTierId, srcGroupId);
+    if (!srcGroup || !srcGroup.items) continue;
+    
+    const itemIdx = srcGroup.items.findIndex(i => i && i.type === 'item' && i.name === itemName);
+    if (itemIdx === -1) continue;
+    
+    const item = srcGroup.items.splice(itemIdx, 1)[0];
+    if (item) newGroup.items.push(item);
+  }
+  
+  // Clear selections
+  selectedItemIds.clear();
+  lastSelectedTierId = null;
+  updateSelectionFloatBar();
+  
+  // Select the new group
+  selectedGroup = { traderId, tierId, groupId: newGroup.id };
+  updateSelIndicator();
+  
+  renderTraders();
+  renderExport();
+  renderCatList(document.getElementById('searchInput').value);
+  notify(`Created group with ${newGroup.items.length} items`);
+}
+
 // ── ITEM MANAGEMENT ──
 function addItemToSelected(itemName) {
   if (!selectedGroup) { notify('Select a group first'); return; }
@@ -1494,7 +1630,9 @@ function renderTraders() {
             const dispName = entryName
               ? `<span class="tier-item-disp-name" title="${escHtml(entryName)}">${escHtml(entryName)}</span>`
               : `<span class="tier-item-spacer"></span>`;
+            const isChecked = selectedItemIds.has(`${trader.id}|${tier.id}|${group.id}|${entry.name}`);
             html += `<div class="${rowClass}" data-idx="${idx}" data-name="${escHtml(entry.name)}">
+              <input type="checkbox" class="item-select-cb" ${isChecked ? 'checked' : ''} onchange="toggleItemSelection(${trader.id},${tier.id},${group.id},'${entry.name}')">
               <span class="drag-handle">⋮⋮</span>
               <span class="tier-item-name" onmouseenter="showTip(event,'${entry.name}')" onmouseleave="hideTip()">${escHtml(entry.name)}</span>
               ${dispName}${owBadge}

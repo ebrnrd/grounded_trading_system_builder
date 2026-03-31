@@ -523,13 +523,16 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 
 <header>
   <div class="logo">S.T.A.L.K.E.R. <span>// </span>ANOMALY</div>
   <div class="header-title">Trader Supplies Builder</div>
   <div class="header-actions">
-    <button class="btn primary" onclick="exportAll()">⬇ Export .ltx</button>
+    <button class="btn" onclick="document.getElementById('importProjectFile').click()">⬆ Import Project</button>
+    <button class="btn" onclick="exportProject()">⬇ Export Project</button>
     <button class="btn small" onclick="showTutorial()">How it works?</button>
+    <input type="file" id="importProjectFile" accept=".zip" style="display:none" onchange="importProject(this)">
   </div>
 </header>
 
@@ -657,6 +660,23 @@ const CACHE_KEY_CATS   = 'trader_builder_categories';
 const CACHE_KEY_NAMES  = 'trader_builder_names';
 const CACHE_KEY_ITEMDB = 'trader_builder_itemdb';
 const CACHE_KEY_FILES  = 'trader_builder_files';
+const CACHE_KEY_RAW_FILES = 'trader_builder_raw_files';
+
+function saveRawFile(name, content, type) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CACHE_KEY_RAW_FILES) || '{}');
+    raw[name] = { content, type };
+    localStorage.setItem(CACHE_KEY_RAW_FILES, JSON.stringify(raw));
+  } catch(e) {}
+}
+
+function getRawFile(name) {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CACHE_KEY_RAW_FILES) || '{}');
+    return raw[name] || null;
+  } catch(e) { return null; }
+}
+
 function saveCategoriesToCache(text) { try { localStorage.setItem(CACHE_KEY_CATS, text); } catch(e) {} }
 function saveNamesToCache() { try { localStorage.setItem(CACHE_KEY_NAMES, JSON.stringify({ names: itemNames, descriptions: itemDescriptions })); } catch(e) {} }
 function saveItemDbToCache() { try { localStorage.setItem(CACHE_KEY_ITEMDB, JSON.stringify({ itemDB, stringDB })); } catch(e) {} }
@@ -668,6 +688,7 @@ function loadFilesFromCache() { const c = localStorage.getItem(CACHE_KEY_FILES);
 function clearCache() {
   localStorage.removeItem(CACHE_KEY_CATS); localStorage.removeItem(CACHE_KEY_NAMES);
   localStorage.removeItem(CACHE_KEY_ITEMDB); localStorage.removeItem(CACHE_KEY_FILES);
+  localStorage.removeItem(CACHE_KEY_RAW_FILES);
   categories = {}; itemDB = {}; stringDB = {}; itemNames = {}; itemDescriptions = {}; loadedFiles = [];
   renderLoadedFiles(); renderCatList(''); updateCatCount();
   notify('Cache cleared');
@@ -944,6 +965,7 @@ function onCatFileChange(input) {
   reader.onload = ev => {
     categories = parseLtx(ev.target.result);
     saveCategoriesToCache(ev.target.result);
+    saveRawFile(f.name, ev.target.result, 'cat');
     loadedFiles = loadedFiles.filter(lf => lf.type !== 'cat');
     loadedFiles.unshift({ name: f.name, type: 'cat' });
     saveFilesToCache();
@@ -964,6 +986,7 @@ function onLtxFilesChange(input) {
     const reader = new FileReader();
     reader.onload = ev => {
       parseLtxConfig(ev.target.result);
+      saveRawFile(f.name, ev.target.result, 'ltx');
       loadedFiles = loadedFiles.filter(lf => !(lf.name === f.name && lf.type === 'ltx'));
       loadedFiles.push({ name: f.name, type: 'ltx' });
       if (++done === files.length) {
@@ -990,6 +1013,7 @@ function onNamesFilesChange(input) {
       const text = ev.target.result;
       mergeItemNames(parseItemNamesXml(text));
       parseXmlStrings(text);
+      saveRawFile(f.name, text, 'xml');
       loadedFiles = loadedFiles.filter(lf => !(lf.name === f.name && lf.type === 'xml'));
       loadedFiles.push({ name: f.name, type: 'xml' });
       if (++done === files.length) {
@@ -1942,6 +1966,153 @@ function downloadExport() {
   notify('Downloaded!');
 }
 function exportAll() { document.getElementById('exportTraderSel').value='__all__'; renderExport(); downloadExport(); }
+
+async function exportProject() {
+  const zip = new JSZip();
+  
+  if (traders.length === 0) { notify('No traders to export'); return; }
+  
+  for (const trader of traders) {
+    document.getElementById('exportTraderSel').value = trader.id;
+    renderExport();
+    const ltxContent = document.getElementById('exportArea').value;
+    zip.file(`traders/trade_${trader.name}.ltx`, ltxContent);
+  }
+  
+  const catFile = loadedFiles.find(f => f.type === 'cat');
+  if (catFile) {
+    const rawCat = getRawFile(catFile.name);
+    if (rawCat && rawCat.content) {
+      zip.file('categories.ltx', rawCat.content);
+    }
+  }
+  
+  const ltxFiles = loadedFiles.filter(f => f.type === 'ltx');
+  for (const f of ltxFiles) {
+    const rawLtx = getRawFile(f.name);
+    if (rawLtx && rawLtx.content) {
+      zip.file(`configs/${f.name}`, rawLtx.content);
+    }
+  }
+  
+  const xmlFiles = loadedFiles.filter(f => f.type === 'xml');
+  for (const f of xmlFiles) {
+    const rawXml = getRawFile(f.name);
+    if (rawXml && rawXml.content) {
+      zip.file(`strings/${f.name}`, rawXml.content);
+    }
+  }
+  
+  const projectMeta = {
+    version: 1,
+    created: new Date().toISOString(),
+    traderCount: traders.length,
+    filesCount: loadedFiles.length
+  };
+  zip.file('project.json', JSON.stringify(projectMeta, null, 2));
+  
+  const blob = await zip.generateAsync({type:'blob'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'trading_project.zip';
+  a.click();
+  notify('Project exported!');
+}
+
+async function importProject(input) {
+  const file = input.files[0];
+  if (!file) return;
+  
+  try {
+    const zip = await JSZip.loadAsync(file);
+    
+    loadedFiles = [];
+    categories = {};
+    itemDB = {};
+    stringDB = {};
+    itemNames = {};
+    itemDescriptions = {};
+    traders = [];
+    selectedGroup = null;
+    selectedItemIds = new Set();
+    lastSelectedTierId = null;
+    
+    const metaFile = zip.file('project.json');
+    if (metaFile) {
+      const meta = JSON.parse(await metaFile.async('string'));
+      notify(`Loading project: ${meta.traderCount} traders, ${meta.filesCount} files`);
+    }
+    
+    const catFile = zip.file('categories.ltx');
+    if (catFile) {
+      const content = await catFile.async('string');
+      categories = parseLtx(content);
+      saveCategoriesToCache(content);
+      saveRawFile('categories.ltx', content, 'cat');
+      loadedFiles.push({ name: 'categories.ltx', type: 'cat' });
+    }
+    
+    const configsFolder = zip.folder('configs');
+    if (configsFolder) {
+      const configFiles = [];
+      configsFolder.forEach((path, file) => configFiles.push(path));
+      for (const path of configFiles) {
+        const content = await configsFolder.file(path).async('string');
+        parseLtxConfig(content);
+        saveRawFile(path, content, 'ltx');
+        loadedFiles.push({ name: path, type: 'ltx' });
+      }
+      saveItemDbToCache();
+    }
+    
+    const stringsFolder = zip.folder('strings');
+    if (stringsFolder) {
+      const stringFiles = [];
+      stringsFolder.forEach((path, file) => stringFiles.push(path));
+      for (const path of stringFiles) {
+        const content = await stringsFolder.file(path).async('string');
+        const parsed = parseItemNamesXml(content);
+        mergeItemNames(parsed);
+        parseXmlStrings(content);
+        saveRawFile(path, content, 'xml');
+        loadedFiles.push({ name: path, type: 'xml' });
+      }
+      saveNamesToCache();
+      saveItemDbToCache();
+    }
+    
+    const tradersFolder = zip.folder('traders');
+    if (tradersFolder) {
+      const traderFiles = [];
+      tradersFolder.forEach((path, file) => traderFiles.push(path));
+      for (const path of traderFiles) {
+        const content = await tradersFolder.file(path).async('string');
+        const match = path.match(/trade_(.+)\.ltx/);
+        if (match) {
+          const trader = parseTraderLtx(content, match[1]);
+          if (trader.tiers.length > 0) traders.push(trader);
+        }
+      }
+    }
+    
+    saveFilesToCache();
+    
+    renderLoadedFiles();
+    renderCatList('');
+    updateCatCount();
+    renderTraders();
+    renderExportSelect();
+    renderExport();
+    
+    const traderCount = traders.length;
+    notify(`Project loaded: ${traderCount} trader${traderCount !== 1 ? 's' : ''}`);
+  } catch(e) {
+    console.error(e);
+    notify('Failed to import project');
+  }
+  
+  input.value = '';
+}
 
 // ── TOOLTIP ──
 let tipTimer = null;

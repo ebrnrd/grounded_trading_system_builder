@@ -277,6 +277,19 @@
     border-top: 1px dashed var(--border); display: flex; gap: 5px; align-items: center;
   }
 
+  .group-offset-btns {
+    display: flex; gap: 2px; margin-left: 4px;
+  }
+  .group-offset-btn {
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    padding: 1px 5px; border-radius: 2px; cursor: pointer;
+    background: var(--bg3); border: 1px solid var(--border2); color: var(--text2);
+    line-height: 1; transition: all 0.1s;
+  }
+  .group-offset-btn:hover { background: var(--accent-dim); border-color: var(--accent); color: #fff; }
+  .group-offset-btn:active { background: var(--accent2); }
+  .group-offset-sep { color: var(--text3); margin: 0 3px; }
+
   .group-items-list { padding: 2px 0; min-height: 4px; }
 
   .tier-item {
@@ -1071,6 +1084,28 @@ function finishRenameGroup(traderId, tierId, groupId, newName) {
   renameGroup(traderId, tierId, groupId, newName.trim());
 }
 
+function offsetGroupItems(traderId, tierId, groupId, amtDelta, chanceDelta) {
+  const group = getGroup(traderId, tierId, groupId);
+  if (!group || !group.items) return;
+  let changed = 0;
+  for (const entry of group.items) {
+    if (!entry || entry.type !== 'item') continue;
+    if (amtDelta !== 0) {
+      entry.amt = Math.max(1, (entry.amt || 1) + amtDelta);
+    }
+    if (chanceDelta !== 0) {
+      const raw = (entry.chance || 0) + chanceDelta;
+      entry.chance = Math.round(Math.min(1, Math.max(0, raw)) * 100) / 100;
+    }
+    changed++;
+  }
+  if (changed > 0) {
+    renderTraders();
+    renderExport();
+    notify(`${changed} item${changed>1?'s':''} offset`);
+  }
+}
+
 function selectGroup(traderId, tierId, groupId) {
   if (selectedGroup && selectedGroup.traderId === traderId && selectedGroup.tierId === tierId && selectedGroup.groupId === groupId) {
     selectedGroup = null;
@@ -1415,6 +1450,13 @@ function renderTraders() {
             <span class="group-sel-dot"></span>
             <span class="group-name-label${!group.name?' unnamed':''}" id="gname_${group.id}" onclick="event.stopPropagation();startRenameGroup(${trader.id},${tier.id},${group.id},this)">${groupLabel}</span>
             <span class="group-item-count">${itemCnt}</span>
+            <div class="group-offset-btns">
+              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},-1,0)" title="Decrease amount by 1">−A</span>
+              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},1,0)" title="Increase amount by 1">+A</span>
+              <span class="group-offset-sep">,</span>
+              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},0,-0.1)" title="Decrease chance by 0.1">−</span>
+              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},0,0.1)" title="Increase chance by 0.1">+</span>
+            </div>
             <button class="btn small danger" style="margin-left:4px;font-size:10px;padding:2px 6px"
               onclick="event.stopPropagation();removeGroup(${trader.id},${tier.id},${group.id})">✕</button>
           </div>

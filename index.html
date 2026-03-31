@@ -409,6 +409,61 @@
     white-space: nowrap;
   }
 
+  .move-dropdown {
+    position: relative;
+  }
+  .move-dropdown-btn {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .move-dropdown-btn::after {
+    content: '▼'; font-size: 8px; margin-left: 4px; transition: transform 0.15s;
+  }
+  .move-dropdown.open > .move-dropdown-btn {
+    background: var(--accent-dim); border-color: var(--accent); color: #fff;
+  }
+  .move-dropdown.open > .move-dropdown-btn::after {
+    transform: rotate(180deg);
+  }
+  .move-dropdown-menu {
+    display: none; position: absolute; bottom: 100%; left: 0;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 4px; min-width: 260px; max-height: 350px; overflow-y: auto;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.4); margin-bottom: 6px; z-index: 100;
+  }
+  .move-dropdown-menu.show { display: block; }
+  .move-dropdown-trader {
+    font-family: var(--mono); font-size: 11px; color: var(--accent);
+    padding: 8px 10px 6px; background: var(--bg4); cursor: pointer;
+    display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border);
+  }
+  .move-dropdown-trader:hover { background: var(--accent-dim); }
+  .move-dropdown-trader::before { content: '▶'; font-size: 8px; transition: transform 0.15s; }
+  .move-dropdown-trader.open::before { transform: rotate(90deg); }
+  .move-dropdown-tiers { display: none; }
+  .move-dropdown-tiers.show { display: block; }
+  .move-dropdown-tier {
+    font-family: var(--mono); font-size: 10px; color: var(--accent2);
+    padding: 6px 10px 4px 24px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .move-dropdown-tier:hover { background: var(--bg4); }
+  .move-dropdown-tier::before { content: '▶'; font-size: 7px; transition: transform 0.15s; color: var(--text3); }
+  .move-dropdown-tier.open::before { transform: rotate(90deg); }
+  .move-dropdown-groups { display: none; padding: 2px 0; }
+  .move-dropdown-groups.show { display: block; }
+  .move-dropdown-group {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    padding: 5px 10px 5px 40px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .move-dropdown-group:hover { background: var(--bg4); color: var(--text); }
+  .move-dropdown-group .group-item-count {
+    font-size: 9px; color: var(--text3); margin-left: auto;
+  }
+  .move-dropdown-empty {
+    padding: 10px; font-size: 11px; color: var(--text3); text-align: center;
+  }
+
   .modal-overlay {
     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0,0,0,0.7); z-index: 1000;
@@ -540,6 +595,10 @@
       <div class="selection-float-bar" id="selectionFloatBar">
         <span class="sel-count" id="selCount">0 items selected</span>
         <button class="btn" onclick="deselectAllItems()">Clear</button>
+        <div class="move-dropdown" id="moveDropdown">
+          <button class="btn move-dropdown-btn" onclick="toggleMoveDropdown()">Move to...</button>
+          <div class="move-dropdown-menu" id="moveDropdownMenu"></div>
+        </div>
         <button class="btn primary" onclick="createGroupFromSelection()">Move to a New Group</button>
       </div>
     </div>
@@ -1266,6 +1325,140 @@ function createGroupFromSelection() {
   renderCatList(document.getElementById('searchInput').value);
   notify(`Created group with ${newGroup.items.length} items`);
 }
+
+function toggleMoveDropdown() {
+  const dropdown = document.getElementById('moveDropdown');
+  const menu = document.getElementById('moveDropdownMenu');
+  dropdown.classList.toggle('open');
+  menu.classList.toggle('show');
+  if (menu.classList.contains('show')) {
+    buildMoveDropdown();
+  }
+}
+
+function buildMoveDropdown() {
+  const menu = document.getElementById('moveDropdownMenu');
+  if (selectedItemIds.size === 0 || lastSelectedTierId === null) {
+    menu.innerHTML = '<div class="move-dropdown-empty">No items selected</div>';
+    return;
+  }
+
+  const firstKey = Array.from(selectedItemIds)[0];
+  const sep1 = firstKey.indexOf('|');
+  const sep2 = firstKey.indexOf('|', sep1 + 1);
+  const sep3 = firstKey.indexOf('|', sep2 + 1);
+  const currentTraderId = parseInt(firstKey.substring(0, sep1));
+  const currentTierId = parseInt(firstKey.substring(sep1 + 1, sep2));
+  const currentGroupId = parseInt(firstKey.substring(sep2 + 1, sep3));
+
+  let html = '';
+  for (const trader of traders) {
+    const isCurrentTrader = trader.id === currentTraderId;
+    html += `<div class="move-dropdown-trader${isCurrentTrader ? ' open' : ''}" onclick="toggleDropdownTrader(this)">
+      <span>${escHtml(trader.name)}</span>
+      <span style="margin-left:auto;font-size:9px;color:var(--text3)">${trader.tiers.length} tier${trader.tiers.length !== 1 ? 's' : ''}</span>
+    </div>
+    <div class="move-dropdown-tiers${isCurrentTrader ? ' show' : ''}">`;
+
+    for (const tier of trader.tiers) {
+      const isCurrentTier = isCurrentTrader && tier.id === currentTierId;
+      const groupCount = tier.groups.filter(g => g.id !== currentGroupId).length;
+      html += `<div class="move-dropdown-tier${isCurrentTier ? ' open' : ''}" onclick="event.stopPropagation();toggleDropdownTier(this)">
+        <span>[${escHtml(tier.name)}]</span>
+        <span style="margin-left:auto;font-size:8px;color:var(--text3)">${groupCount} group${groupCount !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="move-dropdown-groups${isCurrentTier ? ' show' : ''}">`;
+
+      for (const group of tier.groups) {
+        if (group.id === currentGroupId) continue;
+        const itemCount = group.items ? group.items.filter(i => i && i.type === 'item').length : 0;
+        const groupLabel = group.name || '(unnamed)';
+        html += `<div class="move-dropdown-group" onclick="moveToGroup(${trader.id},${tier.id},${group.id})">
+          <span>${escHtml(groupLabel)}</span>
+          <span class="group-item-count">${itemCount}</span>
+        </div>`;
+      }
+
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  if (html === '') {
+    html = '<div class="move-dropdown-empty">No other groups available</div>';
+  }
+  menu.innerHTML = html;
+}
+
+function toggleDropdownTrader(el) {
+  el.classList.toggle('open');
+  const tiers = el.nextElementSibling;
+  if (tiers && tiers.classList.contains('move-dropdown-tiers')) {
+    tiers.classList.toggle('show');
+  }
+}
+
+function toggleDropdownTier(el) {
+  el.classList.toggle('open');
+  const groups = el.nextElementSibling;
+  if (groups && groups.classList.contains('move-dropdown-groups')) {
+    groups.classList.toggle('show');
+  }
+}
+
+function moveToGroup(destTraderId, destTierId, destGroupId) {
+  if (selectedItemIds.size === 0) return;
+
+  const destGroup = getGroup(destTraderId, destTierId, destGroupId);
+  if (!destGroup) return;
+  if (!destGroup.items) destGroup.items = [];
+
+  let movedCount = 0;
+  for (const key of selectedItemIds) {
+    const sep1 = key.indexOf('|');
+    const sep2 = key.indexOf('|', sep1 + 1);
+    const sep3 = key.indexOf('|', sep2 + 1);
+    const srcTraderId = parseInt(key.substring(0, sep1));
+    const srcTierId = parseInt(key.substring(sep1 + 1, sep2));
+    const srcGroupId = parseInt(key.substring(sep2 + 1, sep3));
+    const itemName = key.substring(sep3 + 1);
+
+    const srcGroup = getGroup(srcTraderId, srcTierId, srcGroupId);
+    if (!srcGroup || !srcGroup.items) continue;
+
+    const itemIdx = srcGroup.items.findIndex(i => i && i.type === 'item' && i.name === itemName);
+    if (itemIdx === -1) continue;
+
+    const item = srcGroup.items.splice(itemIdx, 1)[0];
+    if (item) {
+      const existingIdx = destGroup.items.findIndex(i => i && i.type === 'item' && i.name === itemName);
+      if (existingIdx !== -1) {
+        destGroup.items.splice(existingIdx, 1);
+      }
+      destGroup.items.push(item);
+      movedCount++;
+    }
+  }
+
+  document.getElementById('moveDropdownMenu').classList.remove('show');
+  selectedItemIds.clear();
+  lastSelectedTierId = null;
+  updateSelectionFloatBar();
+
+  renderTraders();
+  renderExport();
+  renderCatList(document.getElementById('searchInput').value);
+  notify(`Moved ${movedCount} item${movedCount !== 1 ? 's' : ''}`);
+}
+
+document.addEventListener('click', function(e) {
+  const dropdown = document.getElementById('moveDropdown');
+  if (!dropdown.contains(e.target)) {
+    dropdown.classList.remove('open');
+    document.getElementById('moveDropdownMenu').classList.remove('show');
+  }
+});
 
 // ── ITEM MANAGEMENT ──
 function addItemToSelected(itemName) {

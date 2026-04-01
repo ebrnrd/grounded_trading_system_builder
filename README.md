@@ -22,18 +22,29 @@ Grounded trading system profiles define what items are available through tiered 
 - Shows which items are already in the selected trader with a checkmark
 - Click any item to instantly add it to the currently selected group
 - Selection indicator shows current trader/tier/group path
+- **Hover tooltips** — move your mouse over any item to see its in-game name, cost, tier, ammo class, community, and description
 
 ### Trader & tier editor (middle panel)
 - Create as many trader profiles as you need in a single session
 - **Collapsible traders** — click the arrow or header to collapse/expand
+- **Rename support** — click on any trader, tier, group, or parent name to edit it inline
 - Each trader can have unlimited tiers
-- Each tier supports an optional **parent inheritance** field
+- Each tier supports an optional **parent inheritance** field (editable inline)
 - **Collapsible tiers** — click the arrow or header to collapse/expand
 - Per-item controls for **amount** and **spawn chance** (0–1)
+- **Group offset buttons** — quickly adjust amount (+A/-A) and chance (+/-) for all items in a group at once
 - **Overwrite detection** — if the same item appears in multiple tiers of the same trader, both entries are flagged:
   - The lower tier entry is marked as **overwritten** (red) — it has no practical effect
   - The higher tier entry is marked as **overriding** (green) — it takes precedence
   - Hover any flag badge to see which tier is involved
+- **Drag & drop** — reorder items and groups within tiers using the drag handles
+- **Comments** — add `;; comment` lines anywhere in a group (only visible when the group is selected)
+
+### Bulk item operations
+- **Multi-select items** — checkbox next to each item to select multiple items
+- **Move to group** — move selected items to another group in any tier (via dropdown)
+- **Create new group from selection** — instantly create a new group containing all selected items
+- Items can only be selected within a single tier at a time
 
 ### Export (right panel)
 - Live preview of the generated output, updated as you edit
@@ -45,8 +56,18 @@ Grounded trading system profiles define what items are available through tiered 
 | Button | What it accepts | Purpose |
 |---|---|---|
 | **Load Categories** | `.ltx` / `.txt` | Item category definitions. Can be reloaded at any time to pick up updates. |
+| **Load Config (.ltx)** | `.ltx` (multiple) | Item definition config files (e.g. `items_weapons.ltx`). These provide item names, descriptions, costs, and other metadata via parent inheritance chain. |
 | **Load Names (.xml)** | `.xml` (multiple) | Game string table files containing in-game item names. Select as many as you need in one go. |
 | **Import** (per trader) | `.ltx` / `.txt` | An existing trader profile. Extracts all tier sections including items, values, and parent inheritance. |
+
+### Project management
+- **Import Project** — load a previously exported project `.zip` file to restore your entire workspace
+- **Export Project** — save your traders, loaded categories, configs, and string files as a single `.zip` archive for backup or sharing
+
+### Undo/Redo
+- **Undo** button (or Ctrl+Z) — revert your last action
+- **Redo** button (or Ctrl+Y) — restore a previously undone action
+- Supports up to 20 history states
 
 ---
 

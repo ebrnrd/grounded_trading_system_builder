@@ -209,11 +209,16 @@
   .trader-card-header:hover { background: #222c1a; }
   .trader-card.collapsed .tier-list { display: none; }
   .trader-card.collapsed .trader-card-header { border-bottom: none; }
-  .trader-name { font-weight: 700; font-size: 14px; letter-spacing: 0.5px; flex: 1; text-transform: uppercase; }
-  .trader-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .trader-name { display: inline-block; font-weight: 700; font-size: 14px; letter-spacing: 0.5px; text-transform: uppercase; cursor: pointer; padding: 1px 4px; margin: -1px -4px; border-radius: 2px; }
+  .trader-name:hover { background: var(--bg3); }
+  .trader-meta { font-size: 11px; color: var(--text3); font-family: var(--mono); flex: 1; }
   .collapse-chevron { font-size: 10px; color: var(--text3); transition: transform 0.2s; cursor: pointer; user-select: none; margin-left: 4px; }
   .collapse-chevron:hover { color: var(--text2); }
   .trader-card.collapsed .collapse-chevron, .tier-card.collapsed .collapse-chevron { transform: rotate(-90deg); }
+  .tier-label { display: inline-block; font-family: var(--mono); font-size: 11px; color: var(--accent); cursor: pointer; padding: 1px 4px; margin: -1px -4px; border-radius: 2px; }
+  .tier-label:hover { background: var(--bg3); }
+  .tier-parent { display: inline-block; font-family: var(--mono); font-size: 10px; color: var(--text3); cursor: pointer; padding: 1px 4px; margin: -1px -4px; border-radius: 2px; }
+  .tier-parent:hover { background: var(--bg3); }
 
   .tier-list { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 
@@ -228,8 +233,6 @@
     background: var(--bg2); border-bottom: 1px solid var(--border); cursor: pointer;
   }
   .tier-header:hover { background: #1e2618; }
-  .tier-label { font-family: var(--mono); font-size: 11px; color: var(--accent); flex: 1; }
-  .tier-parent { font-family: var(--mono); font-size: 10px; color: var(--text3); }
   .tier-count { font-family: var(--mono); font-size: 10px; color: var(--text3); background: var(--bg3); padding: 1px 6px; border-radius: 2px; border: 1px solid var(--border); }
 
   /* ── GROUPS ── */
@@ -1191,6 +1194,78 @@ function removeTier(traderId, tierId) {
   renderCatList(document.getElementById('searchInput').value);
 }
 
+// ── TRADER/TIER RENAMING ──
+function renameTrader(id, newName) {
+  const trader = traders.find(t => t.id === id);
+  if (!trader) return;
+  trader.name = newName.trim();
+  renderTraders(); renderExport();
+}
+
+function startRenameTrader(id, el) {
+  const trader = traders.find(t => t.id === id);
+  if (!trader) return;
+  const currentName = trader.name || '';
+  el.innerHTML = `<input type="text" class="rename-input" value="${escHtml(currentName)}" 
+    onkeydown="if(event.key==='Enter')finishRenameTrader(${id},this.value)"
+    onblur="finishRenameTrader(${id},this.value)"
+    onclick="event.stopPropagation()">`;
+  const input = el.querySelector('input');
+  input.focus(); input.select();
+}
+
+function finishRenameTrader(id, newName) { renameTrader(id, newName); }
+
+function renameTier(traderId, tierId, newName) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  tier.name = newName.trim();
+  renderTraders(); renderExport();
+}
+
+function startRenameTier(traderId, tierId, el) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  const currentName = tier.name || '';
+  el.innerHTML = `<input type="text" class="rename-input" value="${escHtml(currentName)}" 
+    onkeydown="if(event.key==='Enter')finishRenameTier(${traderId},${tierId},this.value)"
+    onblur="finishRenameTier(${traderId},${tierId},this.value)"
+    onclick="event.stopPropagation()">`;
+  const input = el.querySelector('input');
+  input.focus(); input.select();
+}
+
+function finishRenameTier(traderId, tierId, newName) { renameTier(traderId, tierId, newName); }
+
+function renameTierParent(traderId, tierId, newName) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  tier.parent = newName.trim();
+  renderTraders(); renderExport();
+}
+
+function startRenameTierParent(traderId, tierId, el) {
+  const trader = traders.find(t => t.id === traderId);
+  if (!trader) return;
+  const tier = trader.tiers.find(t => t.id === tierId);
+  if (!tier) return;
+  const currentName = tier.parent || '';
+  el.innerHTML = `<input type="text" class="rename-input" value="${escHtml(currentName)}" 
+    onkeydown="if(event.key==='Enter')finishRenameTierParent(${traderId},${tierId},this.value)"
+    onblur="finishRenameTierParent(${traderId},${tierId},this.value)"
+    onclick="event.stopPropagation()">`;
+  const input = el.querySelector('input');
+  input.focus(); input.select();
+}
+
+function finishRenameTierParent(traderId, tierId, newName) { renameTierParent(traderId, tierId, newName); }
+
 // ── GROUP MANAGEMENT ──
 function addGroup(traderId, tierId) {
   const nameEl = document.getElementById('groupName_' + tierId);
@@ -1825,7 +1900,7 @@ function renderTraders() {
     html += `<div class="trader-card${isActive?' active':''}${traderCollapsed}" id="trader_${trader.id}">
       <div class="trader-card-header" onclick="toggleTrader(${trader.id})">
         <span class="collapse-chevron">▼</span>
-        <div class="trader-name">${escHtml(trader.name)}</div>
+        <span class="trader-name" id="tradername_${trader.id}" onclick="event.stopPropagation();startRenameTrader(${trader.id},this)">${escHtml(trader.name)}</span>
         <div class="trader-meta">${trader.tiers.length} tier${trader.tiers.length!==1?'s':''}</div>
         <button class="btn small danger" onclick="event.stopPropagation();removeTrader(${trader.id})">✕</button>
       </div>
@@ -1839,8 +1914,8 @@ function renderTraders() {
       html += `<div class="tier-card${tierCollapsed}" id="tier_${trader.id}_${tier.id}">
         <div class="tier-header" onclick="toggleTier(${trader.id},${tier.id})">
           <span class="collapse-chevron">▼</span>
-          <div class="tier-label">[${escHtml(tier.name)}]</div>
-          ${tier.parent ? `<div class="tier-parent">:${escHtml(tier.parent)}</div>` : ''}
+          <span class="tier-label" id="tiername_${tier.id}" onclick="event.stopPropagation();startRenameTier(${trader.id},${tier.id},this)">[${escHtml(tier.name)}]</span>
+          ${tier.parent ? `<span class="tier-parent" id="tierparent_${tier.id}" onclick="event.stopPropagation();startRenameTierParent(${trader.id},${tier.id},this)">:${escHtml(tier.parent)}</span>` : ''}
           <div class="tier-count">${totalItems}</div>
           <button class="btn small danger" style="margin-left:4px" onclick="event.stopPropagation();removeTier(${trader.id},${tier.id})">✕</button>
         </div>

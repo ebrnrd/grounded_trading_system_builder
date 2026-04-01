@@ -99,6 +99,8 @@
   .btn.danger:hover { background: #3a1010; }
   .btn.small { font-size: 11px; padding: 3px 8px; }
   .btn.xs { font-size: 10px; padding: 2px 6px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn:disabled:hover { background: var(--bg4); border-color: var(--border2); color: var(--text); }
 
   /* ── TABS ── */
   .tab-bar { display: flex; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--bg3); }
@@ -532,6 +534,8 @@
   <div class="logo">S.T.A.L.K.E.R. <span>// </span>ANOMALY</div>
   <div class="header-title">Trader Supplies Builder</div>
   <div class="header-actions">
+    <button class="btn small" id="undoBtn" onclick="undo()" title="Undo (Ctrl+Z)">↶ Undo</button>
+    <button class="btn small" id="redoBtn" onclick="redo()" title="Redo (Ctrl+Y)">↷ Redo</button>
     <button class="btn" onclick="document.getElementById('importProjectFile').click()">⬆ Import Project</button>
     <button class="btn" onclick="exportProject()">⬇ Export Project</button>
     <button class="btn small" onclick="showTutorial()">How it works?</button>
@@ -652,6 +656,10 @@ let itemNames        = {};  // legacy heuristic names (from .xml, used as fallba
 let itemDescriptions = {};  // legacy heuristic descriptions (from .xml, used as fallback)
 let loadedFiles      = [];  // [{name, type:'cat'|'ltx'|'xml'}]
 let traders          = [];
+let history          = [];
+let historyIndex     = -1;
+const maxHistory    = 20;
+let historyReady     = false; // prevent saving during initialization
 let selectedGroup    = null; // { traderId, tierId, groupId }
 let selectedItemIds  = new Set(); // { "itemName": true }
 let lastSelectedTierId = null; // tier ID where selections belong
@@ -664,6 +672,75 @@ const CACHE_KEY_NAMES  = 'trader_builder_names';
 const CACHE_KEY_ITEMDB = 'trader_builder_itemdb';
 const CACHE_KEY_FILES  = 'trader_builder_files';
 const CACHE_KEY_RAW_FILES = 'trader_builder_raw_files';
+
+// ── HISTORY (UNDO/REDO) ──
+function saveState() {
+  if (!historyReady) {
+    return;
+  }
+  
+  const snapshot = JSON.parse(JSON.stringify(traders));
+  
+  // Remove any future states if we're not at the end
+  if (historyIndex < history.length - 1) {
+    history = history.slice(0, historyIndex + 1);
+  }
+  
+  history.push(snapshot);
+  
+  // Keep history within maxHistory limit
+  if (history.length > maxHistory) {
+    history.shift();
+    // Don't decrement historyIndex - it stays at maxHistory-1
+  } else {
+    historyIndex++;
+  }
+  
+  updateHistoryUI();
+}
+
+function undo() {
+  if (historyIndex <= 0 || !history[historyIndex - 1]) return;
+  historyIndex--;
+  traders = JSON.parse(JSON.stringify(history[historyIndex]));
+  renderTraders(); renderExport();
+  renderCatList(document.getElementById('searchInput').value);
+  updateHistoryUI();
+}
+
+function redo() {
+  if (historyIndex >= history.length - 1 || !history[historyIndex + 1]) return;
+  historyIndex++;
+  traders = JSON.parse(JSON.stringify(history[historyIndex]));
+  renderTraders(); renderExport();
+  renderCatList(document.getElementById('searchInput').value);
+  updateHistoryUI();
+}
+
+function updateHistoryUI() {
+  const undoBtn = document.getElementById('undoBtn');
+  const redoBtn = document.getElementById('redoBtn');
+  if (undoBtn) undoBtn.disabled = historyIndex <= 0;
+  if (redoBtn) redoBtn.disabled = historyIndex >= history.length - 1;
+}
+
+function initHistory() {
+  historyReady = true;
+  // Capture initial state as first history entry (but only if we have data)
+  if (traders && traders.length > 0) {
+    saveState();
+  }
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'Z' && e.shiftKey))) {
+      e.preventDefault();
+      redo();
+    }
+  });
+}
 
 let rawDb = null;
 const RAW_DB_NAME = 'trader_builder_raw';
@@ -1162,6 +1239,7 @@ function addTrader() {
   const name = el.value.trim();
   if (!name) { notify('Enter a trader name'); return; }
   traders.push({ id: genId(), name, tiers: [] });
+  saveState();
   el.value = '';
   renderTraders(); renderExportSelect(); renderExport();
 }
@@ -1169,6 +1247,7 @@ function addTrader() {
 function removeTrader(id) {
   traders = traders.filter(t => t.id !== id);
   if (selectedGroup && !traders.find(t => t.id === selectedGroup.traderId)) { selectedGroup = null; updateSelIndicator(); }
+  saveState();
   renderTraders(); renderExportSelect(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
 }
@@ -1181,6 +1260,7 @@ function addTier(traderId) {
   const trader = traders.find(t => t.id === traderId);
   if (!trader) return;
   trader.tiers.push({ id: genId(), name, parent: parentEl.value.trim(), groups: [] });
+  saveState();
   nameEl.value = ''; parentEl.value = '';
   renderTraders(); renderExport();
 }
@@ -1190,6 +1270,7 @@ function removeTier(traderId, tierId) {
   if (!trader) return;
   trader.tiers = trader.tiers.filter(t => t.id !== tierId);
   if (selectedGroup && selectedGroup.tierId === tierId) { selectedGroup = null; updateSelIndicator(); }
+  saveState();
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
 }
@@ -1199,6 +1280,7 @@ function renameTrader(id, newName) {
   const trader = traders.find(t => t.id === id);
   if (!trader) return;
   trader.name = newName.trim();
+  saveState();
   renderTraders(); renderExport();
 }
 
@@ -1222,6 +1304,7 @@ function renameTier(traderId, tierId, newName) {
   const tier = trader.tiers.find(t => t.id === tierId);
   if (!tier) return;
   tier.name = newName.trim();
+  saveState();
   renderTraders(); renderExport();
 }
 
@@ -1247,6 +1330,7 @@ function renameTierParent(traderId, tierId, newName) {
   const tier = trader.tiers.find(t => t.id === tierId);
   if (!tier) return;
   tier.parent = newName.trim();
+  saveState();
   renderTraders(); renderExport();
 }
 
@@ -1276,6 +1360,7 @@ function addGroup(traderId, tierId) {
   if (!tier) return;
   const g = { id: genId(), name, items: [] };
   tier.groups.push(g);
+  saveState();
   if (nameEl) nameEl.value = '';
   selectedGroup = { traderId, tierId, groupId: g.id };
   updateSelIndicator();
@@ -1290,6 +1375,7 @@ function removeGroup(traderId, tierId, groupId) {
   if (!tier) return;
   tier.groups = tier.groups.filter(g => g.id !== groupId);
   if (selectedGroup && selectedGroup.groupId === groupId) { selectedGroup = null; updateSelIndicator(); }
+  saveState();
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
 }
@@ -1302,6 +1388,7 @@ function renameGroup(traderId, tierId, groupId, newName) {
   const group = tier.groups.find(g => g.id === groupId);
   if (!group) return;
   group.name = newName;
+  saveState();
   renderTraders(); renderExport();
 }
 
@@ -1342,6 +1429,7 @@ function offsetGroupItems(traderId, tierId, groupId, amtDelta, chanceDelta) {
     changed++;
   }
   if (changed > 0) {
+    saveState();
     renderTraders();
     renderExport();
     notify(`${changed} item${changed>1?'s':''} offset`);
@@ -1475,6 +1563,8 @@ function createGroupFromSelection() {
   selectedGroup = { traderId, tierId, groupId: newGroup.id };
   updateSelIndicator();
   
+  saveState();
+  
   renderTraders();
   renderExport();
   renderCatList(document.getElementById('searchInput').value);
@@ -1596,6 +1686,8 @@ function moveToGroup(destTraderId, destTierId, destGroupId) {
     }
   }
 
+  saveState();
+
   document.getElementById('moveDropdownMenu').classList.remove('show');
   selectedItemIds.clear();
   lastSelectedTierId = null;
@@ -1623,6 +1715,7 @@ function addItemToSelected(itemName) {
   if (!group.items) group.items = [];
   if (group.items.find(i => i && i.type === 'item' && i.name === itemName)) { notify('Item already in group'); return; }
   group.items.push({ type: 'item', name: itemName, amt: 1, chance: 0.75 });
+  saveState();
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
   notify('+ ' + itemName);
@@ -1632,6 +1725,7 @@ function removeItem(traderId, tierId, groupId, itemName) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
   group.items = group.items.filter(i => !(i && i.type === 'item' && i.name === itemName));
+  saveState();
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
 }
@@ -1673,6 +1767,7 @@ function removeEntry(traderId, tierId, groupId, idx) {
   if (!group) return;
   if (!group.items) return;
   group.items.splice(idx, 1);
+  saveState();
   renderTraders(); renderExport();
   renderCatList(document.getElementById('searchInput').value);
 }
@@ -1681,6 +1776,7 @@ function addComment(traderId, tierId, groupId) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
   group.items.push({ type: 'comment', text: '' });
+  saveState();
   renderTraders(); renderExport();
 }
 
@@ -1688,7 +1784,9 @@ function updateComment(traderId, tierId, groupId, idx, value) {
   const group = getGroup(traderId, tierId, groupId);
   if (!group) return;
   if (!group.items || !group.items[idx]) return;
-  if (group.items[idx].type === 'comment') { group.items[idx].text = value; renderExport(); }
+  if (group.items[idx].type === 'comment') { group.items[idx].text = value; }
+  saveState();
+  renderExport();
 }
 
 function updateItemField(traderId, tierId, groupId, itemName, field, value) {
@@ -1697,6 +1795,7 @@ function updateItemField(traderId, tierId, groupId, itemName, field, value) {
   const item = group.items ? group.items.find(i => i && i.type === 'item' && i.name === itemName) : undefined;
   if (!item) return;
   item[field] = field === 'amt' ? Math.max(1, parseInt(value)||1) : Math.min(1, Math.max(0, parseFloat(value)||0));
+  saveState();
   renderExport();
 }
 
@@ -1793,6 +1892,9 @@ function initDragAndDrop() {
         }
         syncGroupItemOrder(sa, st, sg);
         if (sg !== dg) syncGroupItemOrder(da, dt, dg);
+        if (sg !== dg || evt.oldIndex !== evt.newIndex) {
+          saveState();
+        }
       }
     }));
   });
@@ -1803,7 +1905,7 @@ function initDragAndDrop() {
     const tierId   = parseInt(container.dataset.tierId);
     _sortables.push(new Sortable(container, {
       animation: 150, handle: '.group-drag-handle', ghostClass: 'sortable-ghost',
-      onEnd() { syncGroupOrder(traderId, tierId); }
+      onEnd() { syncGroupOrder(traderId, tierId); saveState(); }
     }));
   });
 }
@@ -1940,8 +2042,8 @@ function renderTraders() {
               <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},-1,0)" title="Decrease amount by 1">−A</span>
               <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},1,0)" title="Increase amount by 1">+A</span>
               <span class="group-offset-sep">,</span>
-              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},0,-0.1)" title="Decrease chance by 0.1">−</span>
-              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},0,0.1)" title="Increase chance by 0.1">+</span>
+              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},0,-0.01)" title="Decrease chance by 0.01">−</span>
+              <span class="group-offset-btn" onclick="event.stopPropagation();offsetGroupItems(${trader.id},${tier.id},${group.id},0,0.01)" title="Increase chance by 0.01">+</span>
             </div>
             <button class="btn small danger" style="margin-left:4px;font-size:10px;padding:2px 6px"
               onclick="event.stopPropagation();removeGroup(${trader.id},${tier.id},${group.id})">✕</button>
@@ -2169,6 +2271,9 @@ async function importProject(input) {
     selectedGroup = null;
     selectedItemIds = new Set();
     lastSelectedTierId = null;
+    history = [];
+    historyIndex = -1;
+    historyReady = false;
     
     const metaFile = zip.file('project.json');
     if (metaFile) {
@@ -2228,6 +2333,9 @@ async function importProject(input) {
       }
     }
     
+    // Enable history and save imported state
+    historyReady = true;
+    saveState(); // Initialize history with imported traders
     saveFilesToCache();
     
     renderLoadedFiles();
@@ -2328,8 +2436,11 @@ document.getElementById('newTraderName').addEventListener('keydown', e => { if (
 })();
 
 initDefault();
+initHistory();
 renderTraders();
 renderExport();
+renderCatList(document.getElementById('searchInput').value);
+updateHistoryUI();
 </script>
 </body>
 </html>

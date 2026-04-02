@@ -161,6 +161,57 @@
 
   .search-wrap { padding: 8px; }
   .search-wrap input { width: 100%; }
+  .search-clear-btn {
+    position: absolute; right: 6px; background: none; border: none;
+    color: var(--text3); font-size: 12px; cursor: pointer; padding: 2px 6px;
+  }
+  .search-clear-btn:hover { color: var(--text); }
+  .search-wrap select { width: 100%; }
+
+  /* Sort dropdown styling to match buttons */
+  .sort-dropdown-wrap { position: relative; flex: 1; }
+  #itemSort {
+    font-family: var(--sans); font-weight: 600; font-size: 11px;
+    padding: 3px 8px; border: 1px solid var(--border2); border-radius: 3px;
+    background: var(--bg4); color: var(--text); cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    width: 100%;
+  }
+  .sort-dropdown-wrap::after {
+    content: '▼'; font-size: 8px; color: var(--text2);
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  /* Custom dropdown for sort (styled like Move to... dropdown) */
+  .custom-dropdown { position: relative; width: 150px; flex-shrink: 0; }
+  .custom-dropdown-btn {
+    display: flex; align-items: center; gap: 4px; width: 100%;
+    font-family: var(--sans); font-weight: 600; font-size: 11px;
+    padding: 3px 8px; border: 1px solid var(--border2); border-radius: 3px;
+    background: var(--bg4); color: var(--text); cursor: pointer;
+  }
+  .custom-dropdown-btn::after {
+    content: '▼'; font-size: 8px; margin-left: auto; transition: transform 0.15s;
+  }
+  .custom-dropdown.open > .custom-dropdown-btn {
+    background: var(--accent-dim); border-color: var(--accent); color: #fff;
+  }
+  .custom-dropdown.open > .custom-dropdown-btn::after { transform: rotate(180deg); }
+  .custom-dropdown-menu {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 3px; margin-top: 2px; z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4); overflow: hidden;
+  }
+  .custom-dropdown-menu.show { display: block; }
+  .custom-dropdown-item {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    padding: 6px 10px; cursor: pointer; border-bottom: 1px solid var(--border);
+  }
+  .custom-dropdown-item:last-child { border-bottom: none; }
+  .custom-dropdown-item:hover { background: var(--accent-dim); color: #fff; }
+  .custom-dropdown-item.selected { background: var(--accent-dim); color: #fff; }
 
   .cat-group { border-bottom: 1px solid var(--border); }
   .cat-header {
@@ -189,6 +240,10 @@
     padding: 0 6px 0 8px; font-style: italic;
   }
   .item-row:hover .item-disp-name { color: var(--text2); }
+  .item-cost {
+    margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--accent);
+    padding: 1px 6px; background: var(--bg3); border-radius: 2px; border: 1px solid var(--border);
+  }
 
   .tier-item-disp-name {
     font-family: var(--sans); font-size: 11px; color: var(--text3); flex: 1;
@@ -619,11 +674,29 @@
     <!-- ITEMS TAB -->
     <div class="tab-pane active" id="tabItems">
       <div class="search-wrap">
-        <input type="text" id="searchInput" placeholder="Search items..." oninput="filterItems()">
-        <button class="btn small" style="margin-top:4px" onclick="collapseAllCats()" title="Collapse all categories">Collapse all</button>
+        <div style="position:relative;display:flex;align-items:center">
+          <input type="text" id="searchInput" placeholder="Search items..." oninput="filterItems()">
+          <button class="search-clear-btn" onclick="clearSearch()" title="Clear search">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:4px;align-items:center;flex-wrap:wrap">
+          <button class="btn small" onclick="collapseAllCats()" title="Collapse all categories">Collapse all</button>
+          <div style="flex:1"></div>
+          <span style="font-size:10px;color:var(--text3)">Sort:</span>
+          <div class="custom-dropdown" id="sortDropdown">
+            <button class="custom-dropdown-btn" onclick="toggleSortDropdown()">
+              <span id="sortDropdownLabel">Name A-Z</span>
+            </button>
+            <div class="custom-dropdown-menu">
+              <div class="custom-dropdown-item" data-value="name-asc" onclick="selectSortOption('name-asc')">Name A-Z</div>
+              <div class="custom-dropdown-item" data-value="name-desc" onclick="selectSortOption('name-desc')">Name Z-A</div>
+              <div class="custom-dropdown-item" data-value="price-asc" onclick="selectSortOption('price-asc')">Price Low-High</div>
+              <div class="custom-dropdown-item" data-value="price-desc" onclick="selectSortOption('price-desc')">Price High-Low</div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="sel-indicator" id="selIndicator">← Click item to add to selected group</div>
-      <div class="panel-body" id="catList">
+      <div class="panel-body" id="catList" style="overflow-y:auto">
         <div class="empty">Load a categories .ltx file<br>to browse items</div>
       </div>
     </div>
@@ -725,6 +798,7 @@ let historyReady     = false; // prevent saving during initialization
 let selectedGroup    = null; // { traderId, tierId, groupId }
 let selectedItemIds  = new Set(); // { "itemName": true }
 let lastSelectedTierId = null; // tier ID where selections belong
+let itemSortOrder = 'name-asc';
 let uid = 1;
 const genId = () => uid++;
 
@@ -1031,13 +1105,25 @@ function renderCatList(filter) {
   }
 
   for (const [cat, items] of Object.entries(categories)) {
-    const visible = fl ? items.filter(i => {
+    let visible = fl ? items.filter(i => {
       const itemDash = i.replace(/_/g, '-');
       return i.toLowerCase().includes(fl) || itemDash.toLowerCase().includes(fl) ||
         (itemNames[i] && itemNames[i].toLowerCase().includes(fl)) ||
         (itemNames[itemDash] && itemNames[itemDash].toLowerCase().includes(fl));
-    }) : items;
+    }) : [...items];
     if (!visible.length) continue;
+    
+    // Sort items
+    visible.sort((a, b) => {
+      switch (itemSortOrder) {
+        case 'name-asc': return a.localeCompare(b);
+        case 'name-desc': return b.localeCompare(a);
+        case 'price-asc': return (getItemCost(a) || 0) - (getItemCost(b) || 0);
+        case 'price-desc': return (getItemCost(b) || 0) - (getItemCost(a) || 0);
+        default: return 0;
+      }
+    });
+    
     const catId = 'cat_' + cat.replace(/[^a-z0-9]/gi, '_');
     const addedCount = traderItems ? items.filter(i => traderItems.has(i)).length : 0;
     const addedBadge = addedCount > 0 ? `<span class="badge" style="margin-right:4px">${addedCount}</span>` : '';
@@ -1054,8 +1140,10 @@ function renderCatList(filter) {
       const icon = inTrader ? '<span class="item-in-trader-icon" title="Already in this trader">✓</span>' : '';
       const dispName = getItemName(item);
       const disp = dispName ? `<span class="item-disp-name">${escHtml(dispName)}</span>` : '';
+      const cost = getItemCost(item);
+      const costSpan = cost !== null ? `<span class="item-cost">${cost}</span>` : '';
       const descr = getItemDescription(item);
-      html += `<div class="item-row" onclick="addItemToSelected('${item}')" onmouseenter="showTip(event,'${item}')" onmouseleave="hideTip()">${icon}<span>${item}</span>${disp}<span class="add-icon">+</span></div>`;
+      html += `<div class="item-row" onclick="addItemToSelected('${item}')" onmouseenter="showTip(event,'${item}')" onmouseleave="hideTip()">${icon}<span>${item}</span>${disp}${costSpan}<span class="add-icon">+</span></div>`;
     }
     html += `</div></div>`;
   }
@@ -1072,6 +1160,33 @@ function collapseAllCats() {
   document.querySelectorAll('.cat-chevron').forEach(el => el.classList.remove('open'));
 }
 function filterItems() { renderCatList(document.getElementById('searchInput').value); }
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  filterItems();
+}
+function handleItemSort() {
+  itemSortOrder = document.getElementById('itemSort') ? document.getElementById('itemSort').value : 'name-asc';
+  renderCatList(document.getElementById('searchInput').value);
+}
+function toggleSortDropdown() {
+  const dd = document.getElementById('sortDropdown');
+  dd.classList.toggle('open');
+  const menu = dd.querySelector('.custom-dropdown-menu');
+  menu.classList.toggle('show');
+}
+function selectSortOption(value) {
+  itemSortOrder = value;
+  const labelMap = {
+    'name-asc': 'Name A-Z',
+    'name-desc': 'Name Z-A',
+    'price-asc': 'Price Low-High',
+    'price-desc': 'Price High-Low'
+  };
+  document.getElementById('sortDropdownLabel').textContent = labelMap[value];
+  document.getElementById('sortDropdown').classList.remove('open');
+  document.querySelector('.custom-dropdown-menu').classList.remove('show');
+  renderCatList(document.getElementById('searchInput').value);
+}
 function updateCatCount() {
   document.getElementById('catCount').textContent = Object.values(categories).reduce((s,a)=>s+a.length,0) + ' items';
 }
@@ -1771,6 +1886,11 @@ document.addEventListener('click', function(e) {
   if (!dropdown.contains(e.target)) {
     dropdown.classList.remove('open');
     document.getElementById('moveDropdownMenu').classList.remove('show');
+  }
+  const sortDropdown = document.getElementById('sortDropdown');
+  if (sortDropdown && !sortDropdown.contains(e.target)) {
+    sortDropdown.classList.remove('open');
+    sortDropdown.querySelector('.custom-dropdown-menu').classList.remove('show');
   }
 });
 

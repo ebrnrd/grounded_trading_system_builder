@@ -83,7 +83,7 @@
     padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex-shrink: 0;
   }
   .panel-title { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; flex: 1; }
-  .panel-body { flex: 1; overflow-y: auto; }
+  .panel-body { flex: 1; overflow-y: auto; position: relative; }
   .panel-body::-webkit-scrollbar { width: 4px; }
   .panel-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
@@ -335,6 +335,61 @@
 
   .add-tier-wrap { padding: 6px 8px 8px; }
   .add-tier-row { display: flex; gap: 6px; align-items: center; }
+
+  /* Templates trader styling */
+  .trader-card.templates-trader {
+    opacity: 0.75;
+    border-style: dashed;
+  }
+  .trader-card.templates-trader .trader-card-header {
+    background: #1a1c18;
+  }
+  .trader-card.templates-trader .trader-name {
+    color: var(--text3);
+    font-style: italic;
+  }
+  .trader-card.templates-trader .trader-meta {
+    color: var(--text3);
+  }
+
+  /* Template dropdown */
+  .template-dropdown {
+    position: relative;
+    display: inline-block;
+  }
+  .template-dropdown-btn {
+    display: flex; align-items: center; gap: 4px;
+  }
+  .template-dropdown-btn::after {
+    content: '▼'; font-size: 8px; margin-left: 4px; transition: transform 0.15s;
+  }
+  .template-dropdown.open > .template-dropdown-btn {
+    background: var(--accent-dim); border-color: var(--accent); color: #fff;
+  }
+  .template-dropdown.open > .template-dropdown-btn::after {
+    transform: rotate(180deg);
+  }
+  .template-dropdown-menu {
+    display: none; position: absolute; bottom: 100%; right: 0;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: 4px; min-width: 250px; max-height: 140px; overflow-y: auto;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.4); margin-bottom: 6px; z-index: 9999;
+  }
+  .template-dropdown-menu.show { display: block; }
+  .template-dropdown-tier {
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    padding: 8px 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .template-dropdown-tier:last-child { border-bottom: none; }
+  .template-dropdown-tier:hover { background: var(--accent-dim); color: #fff; }
+  .template-dropdown-tier .tier-name { flex: 1; }
+  .template-dropdown-tier .tier-info { font-size: 9px; color: var(--text3); }
+  .template-dropdown-tier:hover .tier-info { color: #ccc; }
+  .template-dropdown-empty {
+    padding: 12px; font-size: 11px; color: var(--text3); text-align: center;
+  }
   .add-tier-row input { flex: 1; }
 
   .export-panel { display: flex; flex-direction: column; }
@@ -405,7 +460,7 @@
   .selection-float-bar {
     display: none; padding: 8px 12px; background: var(--bg4);
     border-top: 1px solid var(--border2); gap: 8px; align-items: center;
-    position: sticky; bottom: 0; z-index: 10;
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 10;
   }
   .selection-float-bar.show { display: flex; }
   .selection-float-bar .btn-primary { flex: 1; }
@@ -601,6 +656,7 @@
           <input type="text" id="newTraderName" placeholder="New trader name (e.g. sidorovich)">
           <button class="btn primary" onclick="addTrader()">+ Add</button>
           <button class="btn" onclick="triggerImportDialog()" title="Import an existing trader .ltx file">⬆ Import</button>
+          <button class="btn" onclick="triggerImportAsTemplateDialog()" title="Import all sections as templates">Import as Template</button>
           <input type="file" id="importFile" accept=".ltx,.txt" style="display:none">
         </div>
         <div id="traderList"></div>
@@ -668,6 +724,11 @@ let selectedItemIds  = new Set(); // { "itemName": true }
 let lastSelectedTierId = null; // tier ID where selections belong
 let uid = 1;
 const genId = () => uid++;
+
+// Templates trader special ID (always present)
+const TEMPLATES_TRADER_ID = -1;
+const TEMPLATES_TRADER_NAME = 'Templates';
+let importingAsTemplate = false;
 
 // ── CACHE ──
 const CACHE_KEY_CATS   = 'trader_builder_categories';
@@ -1914,7 +1975,7 @@ function initDragAndDrop() {
 }
 
 // ── IMPORT TRADER LTX ──
-function parseTraderLtx(text, traderName) {
+function parseTraderLtx(text, traderName, options = {}) {
   const tiers = [];
   let currentTier = null;
   for (let line of text.split(/\r?\n/)) {
@@ -1926,7 +1987,7 @@ function parseTraderLtx(text, traderName) {
 
     if (headerMatch) {
       const secName = headerMatch[1].trim();
-      if (!secName.toLowerCase().includes('supplies')) { currentTier = null; continue; }
+      if (!options.skipSuppliesFilter && !secName.toLowerCase().includes('supplies')) { currentTier = null; continue; }
       currentTier = { id: genId(), name: secName, parent: headerMatch[2]?.trim() || '', groups: [] };
       tiers.push(currentTier);
       continue;
@@ -1972,6 +2033,12 @@ function parseTraderLtx(text, traderName) {
 function triggerImportDialog() {
   const name = document.getElementById('newTraderName').value.trim();
   if (!name) { notify('Enter trader name before importing'); document.getElementById('newTraderName').focus(); return; }
+  importingAsTemplate = false;
+  document.getElementById('importFile').click();
+}
+
+function triggerImportAsTemplateDialog() {
+  importingAsTemplate = true;
   document.getElementById('importFile').click();
 }
 
@@ -1980,26 +2047,145 @@ document.getElementById('importFile').addEventListener('change', function(e) {
   const name = document.getElementById('newTraderName').value.trim() || f.name.replace(/\.ltx$/i,'').replace(/^trade_/,'');
   const reader = new FileReader();
   reader.onload = ev => {
-    const trader = parseTraderLtx(ev.target.result, name);
-    if (!trader.tiers.length) { notify('No supplies sections found in file'); return; }
-    traders.push(trader);
-    document.getElementById('newTraderName').value = '';
-    renderTraders(); renderExportSelect(); renderExport();
-    const totalItems  = trader.tiers.reduce((s,t)=>s+t.groups.reduce((gs,g)=>gs+(g.items?g.items.filter(i=>i && i.type==='item').length:0),0),0);
-    const totalGroups = trader.tiers.reduce((s,t)=>s+t.groups.length,0);
-    notify(`Imported "${name}": ${trader.tiers.length} tiers, ${totalGroups} groups, ${totalItems} items`);
+    if (importingAsTemplate) {
+      const templates = ensureTemplatesTrader();
+      const parsed = parseTraderLtx(ev.target.result, name, { skipSuppliesFilter: true });
+      if (!parsed.tiers.length) { notify('No sections found in file'); importingAsTemplate = false; return; }
+      for (const tier of parsed.tiers) {
+        const clonedTier = cloneTier(tier);
+        templates.tiers.push(clonedTier);
+      }
+      saveState();
+      renderTraders();
+      const totalItems = parsed.tiers.reduce((s,t)=>s+t.groups.reduce((gs,g)=>gs+(g.items?g.items.filter(i=>i && i.type==='item').length:0),0),0);
+      const totalGroups = parsed.tiers.reduce((s,t)=>s+t.groups.length,0);
+      notify(`Imported ${parsed.tiers.length} templates, ${totalGroups} groups, ${totalItems} items`);
+    } else {
+      const trader = parseTraderLtx(ev.target.result, name);
+      if (!trader.tiers.length) { notify('No supplies sections found in file'); return; }
+      traders.push(trader);
+      document.getElementById('newTraderName').value = '';
+      renderTraders(); renderExportSelect(); renderExport();
+      const totalItems  = trader.tiers.reduce((s,t)=>s+t.groups.reduce((gs,g)=>gs+(g.items?g.items.filter(i=>i && i.type==='item').length:0),0),0);
+      const totalGroups = trader.tiers.reduce((s,t)=>s+t.groups.length,0);
+      notify(`Imported "${name}": ${trader.tiers.length} tiers, ${totalGroups} groups, ${totalItems} items`);
+    }
+    importingAsTemplate = false;
   };
   reader.readAsText(f);
   this.value = '';
 });
 
+// ── TEMPLATES HELPER ──
+function getTemplatesTrader() {
+  return traders.find(t => t.id === TEMPLATES_TRADER_ID);
+}
+
+function ensureTemplatesTrader() {
+  let templates = getTemplatesTrader();
+  if (!templates) {
+    templates = { id: TEMPLATES_TRADER_ID, name: TEMPLATES_TRADER_NAME, tiers: [] };
+    traders.unshift(templates);
+  }
+  return templates;
+}
+
+// Deep clone a tier (groups, items, comments)
+function cloneTier(templateTier) {
+  const clonedGroups = templateTier.groups.map(group => ({
+    id: genId(),
+    name: group.name,
+    items: (group.items || []).map(item => ({ ...item }))
+  }));
+  return {
+    id: genId(),
+    name: templateTier.name,
+    parent: templateTier.parent || '',
+    groups: clonedGroups
+  };
+}
+
+function addTierFromTemplate(traderId, templateTierId) {
+  const trader = traders.find(t => t.id === traderId);
+  const templates = getTemplatesTrader();
+  if (!trader || !templates) return;
+  
+  const templateTier = templates.tiers.find(t => t.id === templateTierId);
+  if (!templateTier) return;
+  
+  const newTier = cloneTier(templateTier);
+  trader.tiers.push(newTier);
+  saveState();
+  
+  // Close template dropdown
+  document.querySelectorAll('.template-dropdown.open').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.template-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+  
+  renderTraders();
+  renderExport();
+  notify(`Added tier from template: ${templateTier.name}`);
+}
+
+function toggleTemplateDropdown(traderId, btn) {
+  // Close all other template dropdowns first
+  document.querySelectorAll('.template-dropdown.open').forEach(d => {
+    if (d !== btn.parentElement) d.classList.remove('open');
+  });
+  document.querySelectorAll('.template-dropdown-menu.show').forEach(m => {
+    if (m.parentElement !== btn.parentElement) m.classList.remove('show');
+  });
+  
+  const dropdown = btn.parentElement;
+  const menu = dropdown.querySelector('.template-dropdown-menu');
+  dropdown.classList.toggle('open');
+  menu.classList.toggle('show');
+  
+  if (menu.classList.contains('show')) {
+    buildTemplateDropdown(traderId, menu);
+  }
+}
+
+function buildTemplateDropdown(traderId, menu) {
+  const templates = getTemplatesTrader();
+  
+  if (!templates || templates.tiers.length === 0) {
+    menu.innerHTML = '<div class="template-dropdown-empty">No templates yet.<br>Add tiers to Templates trader.</div>';
+    return;
+  }
+  
+  let html = '';
+  for (const tier of templates.tiers) {
+    const groupCount = tier.groups.length;
+    const itemCount = tier.groups.reduce((s, g) => s + (g.items ? g.items.filter(i => i.type === 'item').length : 0), 0);
+    html += `<div class="template-dropdown-tier" onclick="addTierFromTemplate(${traderId}, ${tier.id})">
+      <span class="tier-name">[${escHtml(tier.name)}]</span>
+      <span class="tier-info">${groupCount} group${groupCount !== 1 ? 's' : ''}, ${itemCount} item${itemCount !== 1 ? 's' : ''}</span>
+    </div>`;
+  }
+  menu.innerHTML = html;
+}
+
+// Close template dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.template-dropdown')) {
+    document.querySelectorAll('.template-dropdown.open').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.template-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+  }
+});
+
 // ── RENDER TRADERS ──
 function renderTraders() {
   const el = document.getElementById('traderList');
-  if (!traders.length) { el.innerHTML = '<div class="empty">No traders yet.<br>Enter a name and click Add.</div>'; return; }
-
+  
+  // Ensure Templates trader exists
+  const templates = ensureTemplatesTrader();
+  
+  // Render regular traders first, then Templates at the end
+  const regularTraders = traders.filter(t => t.id !== TEMPLATES_TRADER_ID);
+  
   let html = '';
-  for (const trader of traders) {
+  
+  for (const trader of regularTraders) {
     const isActive = selectedGroup?.traderId === trader.id;
     const traderCollapsed = trader._collapsed ? ' collapsed' : '';
     html += `<div class="trader-card${isActive?' active':''}${traderCollapsed}" id="trader_${trader.id}">
@@ -2127,16 +2313,138 @@ function renderTraders() {
       html += `</div>`; // tier-card
     }
 
+    // Add-tier row with Template dropdown
     html += `</div>
       <div class="add-tier-wrap">
         <div class="add-tier-row">
           <input type="text" id="tierName_${trader.id}" placeholder="Tier name (e.g. supplies_1)">
           <input type="text" id="tierParent_${trader.id}" placeholder="Parent (optional)" style="width:130px">
           <button class="btn primary small" onclick="addTier(${trader.id})">+ Tier</button>
+          <div class="template-dropdown">
+            <button class="btn small" onclick="event.stopPropagation();toggleTemplateDropdown(${trader.id}, this)">+ Tier w/ Template</button>
+            <div class="template-dropdown-menu"></div>
+          </div>
         </div>
       </div>
     </div>`;
   }
+  
+  // Render Templates trader at the end with special styling
+  const templatesCollapsed = templates._collapsed ? ' collapsed' : '';
+  html += `<div class="trader-card templates-trader${templatesCollapsed}" id="trader_${templates.id}">
+    <div class="trader-card-header" onclick="toggleTrader(${templates.id})">
+      <span class="collapse-chevron">▼</span>
+      <span class="trader-name" id="tradername_${templates.id}">${escHtml(templates.name)}</span>
+      <div class="trader-meta">${templates.tiers.length} tier${templates.tiers.length!==1?'s':''}</div>
+    </div>
+    <div class="tier-list">`;
+
+  if (!templates.tiers.length) html += '<div class="empty" style="padding:10px">No templates yet.<br>Add tiers here to use as templates.</div>';
+
+  for (const tier of templates.tiers) {
+    const totalItems = tier.groups.reduce((s,g)=>s+(g.items?g.items.filter(e=>e && e.type==='item').length:0), 0);
+    const tierCollapsed = tier._collapsed ? ' collapsed' : '';
+    html += `<div class="tier-card${tierCollapsed}" id="tier_${templates.id}_${tier.id}">
+      <div class="tier-header" onclick="toggleTier(${templates.id},${tier.id})">
+        <span class="collapse-chevron">▼</span>
+        <span style="flex:1">
+          <span class="tier-label" id="tiername_${tier.id}" onclick="event.stopPropagation();startRenameTier(${templates.id},${tier.id},this)">[${escHtml(tier.name)}]</span>
+          ${tier.parent ? `<span class="tier-parent" id="tierparent_${tier.id}" onclick="event.stopPropagation();startRenameTierParent(${templates.id},${tier.id},this)">:${escHtml(tier.parent)}</span>` : ''}
+        </span>
+        <div class="tier-count">${totalItems}</div>
+        <button class="btn small danger" style="margin-left:4px" onclick="event.stopPropagation();removeTier(${templates.id},${tier.id})">✕</button>
+      </div>
+      <div class="groups-list" data-trader-id="${templates.id}" data-tier-id="${tier.id}">`;
+
+    if (!tier.groups.length) html += '<div class="group-empty-hint">Empty template tier</div>';
+
+    for (const group of tier.groups) {
+      const isSel   = selectedGroup?.groupId === group.id && selectedGroup?.tierId === tier.id;
+      const itemCnt = group.items ? group.items.filter(e=>e && e.type==='item').length : 0;
+      const groupLabel = group.name ? escHtml(group.name) : '<span style="color:var(--text3);font-style:italic">unnamed</span>';
+
+      html += `<div class="group-card${isSel?' selected':''}" data-group-id="${group.id}">
+        <div class="group-header" onclick="selectGroup(${templates.id},${tier.id},${group.id})">
+          <span class="group-drag-handle">⋮⋮</span>
+          <span class="group-sel-dot"></span>
+          <span class="group-name-label${!group.name?' unnamed':''}" id="gname_${group.id}" onclick="event.stopPropagation();startRenameGroup(${templates.id},${tier.id},${group.id},this)">${groupLabel}</span>
+          <span class="group-item-count">${itemCnt}</span>
+          <button class="btn small danger" style="margin-left:4px;font-size:10px;padding:2px 6px"
+            onclick="event.stopPropagation();removeGroup(${templates.id},${tier.id},${group.id})">✕</button>
+        </div>
+        <div class="group-items-list" data-trader-id="${templates.id}" data-tier-id="${tier.id}" data-group-id="${group.id}">`;
+
+      const items = group.items || [];
+      for (let idx = 0; idx < items.length; idx++) {
+        const entry = items[idx];
+        if (!entry) continue;
+        if (entry.type === 'comment') {
+          html += `<div class="tier-comment" data-idx="${idx}">
+            <span class="drag-handle">⋮⋮</span>
+            <span class="comment-prefix">;;</span>
+            <input type="text" class="comment-input" value="${escHtml(entry.text)}" placeholder="comment text..."
+              onchange="updateComment(${templates.id},${tier.id},${group.id},${idx},this.value)"
+              oninput="updateComment(${templates.id},${tier.id},${group.id},${idx},this.value)">
+            <span class="rm" onclick="removeEntry(${templates.id},${tier.id},${group.id},${idx})">✕</span>
+          </div>`;
+        } else {
+          const entryName = getItemName(entry.name);
+          const dispName = entryName
+            ? `<span class="tier-item-disp-name" title="${escHtml(entryName)}">${escHtml(entryName)}</span>`
+            : `<span class="tier-item-spacer"></span>`;
+          const isChecked = selectedItemIds.has(`${templates.id}|${tier.id}|${group.id}|${entry.name}`);
+          html += `<div class="tier-item" data-idx="${idx}" data-name="${escHtml(entry.name)}">
+            <input type="checkbox" class="item-select-cb" ${isChecked ? 'checked' : ''} onchange="toggleItemSelection(${templates.id},${tier.id},${group.id},'${entry.name}')">
+            <span class="drag-handle">⋮⋮</span>
+            <span class="tier-item-name" onmouseenter="showTip(event,'${entry.name}')" onmouseleave="hideTip()">${escHtml(entry.name)}</span>
+            ${dispName}
+            <input type="number" min="1" max="99" value="${entry.amt}"
+              onchange="updateItemField(${templates.id},${tier.id},${group.id},'${entry.name}','amt',this.value)"
+              title="Amount" style="width:54px">
+            <span class="tier-item-sep">,</span>
+            <input type="number" min="0" max="1" step="0.01" value="${entry.chance}"
+              onchange="updateItemField(${templates.id},${tier.id},${group.id},'${entry.name}','chance',this.value)"
+              title="Chance (0-1)" style="width:62px">
+            <span class="rm" onclick="removeItem(${templates.id},${tier.id},${group.id},'${entry.name}')">✕</span>
+          </div>`;
+        }
+      }
+
+      html += `</div>`; // group-items-list
+
+      // Comment button only for selected group
+      if (isSel) {
+        html += `<div class="group-actions">
+          <button class="btn small" style="width:100%;color:var(--text3);border-style:dashed"
+            onclick="addComment(${templates.id},${tier.id},${group.id})">+ Comment</button>
+        </div>`;
+      }
+
+      html += `</div>`; // group-card
+    }
+
+    html += `</div>`; // groups-list
+
+    // Add-group row
+    html += `<div class="add-group-wrap">
+      <input type="text" id="groupName_${tier.id}" placeholder="Group name (optional, e.g. Weapons)">
+      <button class="btn primary small" onclick="addGroup(${templates.id},${tier.id})">+ Group</button>
+    </div>`;
+
+    html += `</div>`; // tier-card
+  }
+
+  // Templates trader add-tier row
+  html += `</div>
+    <div class="add-tier-wrap">
+      <div class="add-tier-row">
+        <input type="text" id="tierName_${templates.id}" placeholder="Template name">
+        <input type="text" id="tierParent_${templates.id}" placeholder="Parent (optional)" style="width:130px">
+        <button class="btn primary small" onclick="addTier(${templates.id})">+ Template</button>
+      </div>
+    </div>
+  </div>`;
+
   el.innerHTML = html;
   initDragAndDrop();
 }
@@ -2166,8 +2474,13 @@ function renderExport() {
     for (const tier of trader.tiers) {
       out += (tier.parent ? `[${tier.name}]:${tier.parent}` : `[${tier.name}]`) + '\n';
       const allItems = tier.groups.flatMap(g=>g.items ? g.items.filter(e=>e && e.type==='item') : []);
-      if (!tier.groups.length || !allItems.length) {
+      if (!tier.groups.length) {
         out += '; (empty)\n';
+      } else if (!allItems.length) {
+        // Tier has groups but all are empty - skip output for these groups
+        for (const group of tier.groups) {
+          if (group.name) out += `; ${group.name}\n`;
+        }
       } else {
         const maxLen = Math.max(...allItems.map(i=>i.name.length));
         for (const group of tier.groups) {
@@ -2214,7 +2527,30 @@ async function exportProject() {
     document.getElementById('exportTraderSel').value = trader.id;
     renderExport();
     const ltxContent = document.getElementById('exportArea').value;
-    zip.file(`traders/trade_${trader.name}.ltx`, ltxContent);
+    // For Templates trader, export all sections (no buy_supplies filter)
+    if (trader.id === TEMPLATES_TRADER_ID) {
+      let templateOut = '';
+      for (const tier of trader.tiers) {
+        templateOut += (tier.parent ? `[${tier.name}]:${tier.parent}` : `[${tier.name}]`) + '\n';
+        for (const group of tier.groups) {
+          if (group.name) templateOut += `; ${group.name}\n`;
+          for (const entry of (group.items || [])) {
+            if (!entry) continue;
+            if (entry.type === 'comment') {
+              templateOut += `;; ${entry.text}\n`;
+            } else if (entry.type === 'item') {
+              const amt = entry.amt !== undefined ? entry.amt : 1;
+              const chance = entry.chance !== undefined ? entry.chance : 0.5;
+              templateOut += `${entry.name} = ${amt}, ${chance}\n`;
+            }
+          }
+        }
+        templateOut += '\n';
+      }
+      zip.file(`traders/trade_${trader.name}.ltx`, templateOut);
+    } else {
+      zip.file(`traders/trade_${trader.name}.ltx`, ltxContent);
+    }
   }
   
   const catFile = loadedFiles.find(f => f.type === 'cat');
@@ -2330,8 +2666,17 @@ async function importProject(input) {
         const content = await tradersFolder.file(path).async('string');
         const match = path.match(/trade_(.+)\.ltx/);
         if (match) {
-          const trader = parseTraderLtx(content, match[1]);
-          if (trader.tiers.length > 0) traders.push(trader);
+          if (match[1] === 'Templates') {
+            const templates = ensureTemplatesTrader();
+            templates.tiers = [];
+            const parsed = parseTraderLtx(content, 'Templates', { skipSuppliesFilter: true });
+            for (const tier of parsed.tiers) {
+              templates.tiers.push(cloneTier(tier));
+            }
+          } else {
+            const trader = parseTraderLtx(content, match[1]);
+            if (trader.tiers.length > 0) traders.push(trader);
+          }
         }
       }
     }
